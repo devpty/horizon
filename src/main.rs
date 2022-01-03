@@ -4,6 +4,7 @@ use winit::{
 	event_loop::{ControlFlow, EventLoop},
 	window::Window,
 };
+use winit::dpi;
 
 async fn run(event_loop: EventLoop<()>, window: Window) {
 	let size = window.inner_size();
@@ -35,8 +36,7 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
 	// Load the shaders from disk
 	let shader = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
 		label: None,
-		source: wgpu::ShaderSource::SpirV(Cow::Borrowed(include_bytes!(concat!(env!("OUT_DIR"), "/shaders/shader.wgsl")))),
-		// source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(include_str!("shader.wgsl"))),
+		source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(include_str!("shaders/shader.wgsl"))),
 	});
 
 	let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -109,7 +109,7 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
 							view: &view,
 							resolve_target: None,
 							ops: wgpu::Operations {
-								load: wgpu::LoadOp::Clear(wgpu::Color::GREEN),
+								load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
 								store: true,
 							},
 						}],
@@ -135,10 +135,9 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
 async fn main() {
 	let event_loop = EventLoop::new();
 	let window = winit::window::WindowBuilder::new()
-		.with_title("PioneerRenderingEngine")
+		.with_title("Horizon")
+		.with_min_inner_size(dpi::Size::new(dpi::PhysicalSize {width: 640, height: 480}))
 		.build(&event_loop).unwrap();
 	env_logger::init();
 	run(event_loop, window).await;
-
-	// pollster::block_on(run(event_loop, window));
 }

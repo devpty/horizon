@@ -1,11 +1,11 @@
-// use std::env;
+use std::env;
 use std::fs;
 use std::io;
 use std::path::Path;
 
 macro_rules! bprintln {
 	($($arg:tt)*) => ({
-		println!("cargo:warning={}", format!($($arg)*));
+		println!("cargo:warning=\x1b[G\x1b[K{}", format!($($arg)*));
 	})
 }
 
@@ -21,13 +21,18 @@ fn visit_dir(dir: &Path, cb: &dyn Fn(&Path)) -> io::Result<()> {
 }
 
 fn main() {
-	// let out_dir = Path::new(&env::var_os("OUT_DIR").unwrap());
-	visit_dir(Path::new("./"), &|file| {
-		let ext = file.extension();
-		if ext.unwrap_or("") == "wgsl" {
-			bprintln!("{:?}", file);
-		}
-	}).expect("Failed to scan files");
+	// let path = env::var_os("OUT_DIR").unwrap();
+	// let out_dir = Path::new(&path);
+	// visit_dir(Path::new("src/shaders"), &|file: &Path| {
+	// 	let ext = file.extension();
+	// 	if ext.unwrap_or(std::ffi::OsStr::new("")) == "wgsl" {
+	// 		let target = out_dir.join(file
+	// 			.strip_prefix("src/")
+	// 			.expect("File not in source tree?")
+	// 			.with_extension("spv"));
+	// 		bprintln!("{:?} -> {:?}", file, target);
+	// 	}
+	// }).expect("Failed to scan files");
 	// let dest_path = Path::new(&out_dir).join("hello.rs");
 	// fs::write(
 	//     &dest_path,
@@ -36,5 +41,5 @@ fn main() {
 	//     }
 	//     "
 	// ).unwrap();
-	println!("cargo:rerun-if-changed=src/shaders/");
+	// println!("cargo:rerun-if-changed=src/shaders/");
 }
