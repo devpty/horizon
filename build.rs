@@ -24,8 +24,8 @@ fn main() {
 	// let out_dir = Path::new(&env::var_os("OUT_DIR").unwrap());
 	visit_dir(Path::new("./"), &|file| {
 		let ext = file.extension();
-		if ext == "wgsl" {
-			bprintln!("{}", file);
+		if ext.unwrap_or("") == "wgsl" {
+			bprintln!("{:?}", file);
 		}
 	}).expect("Failed to scan files");
 	// let dest_path = Path::new(&out_dir).join("hello.rs");
