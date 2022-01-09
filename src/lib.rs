@@ -101,6 +101,7 @@ pub async fn start(info: StartInfo) {
 		.with_title("horizon")
 		.build(&event_loop).expect("Failed to window");
 	let mut state = State::new(&window).await;
+	let mut resize_id = 1u128;
 	event_loop.run(move |event, _, control_flow| match event {
 		event::Event::RedrawRequested(window_id) if window_id == window.id() => {
 			state.update();
@@ -126,7 +127,8 @@ pub async fn start(info: StartInfo) {
 					},..
 				} => *control_flow = event_loop::ControlFlow::Exit,
 				event::WindowEvent::Resized(physical_size) => {
-					println!("###### RESIZE EVENT LMAO");
+					println!("###### RESIZE EVENT {}", resize_id);
+					resize_id += 1;
 					state.resize(*physical_size);
 				}
 				event::WindowEvent::ScaleFactorChanged { new_inner_size, .. } => {
