@@ -10,6 +10,38 @@ pub struct StartInfo {
 
 }
 
+/// wgpu::VertexBufferLayout that owns it's attributes
+struct FakeVertexBufferLayout {
+	array_stride: wgpu::BufferAddress,
+	attributes: Box<[wgpu::VertexAttribute]>,
+	step_mode: wgpu::VertexStepMode,
+}
+
+macro_rules! fake_vertex_attr_array {
+	( $type:ty, $step:tt, $( $loc:tt => $data:tt ),* ) => {
+		FakeVertexBufferLayout::new::<$type>(
+			Box::new(wgpu::vertex_attr_array![$($loc => $data),*]),
+			wgpu::VertexStepMode::$step
+		)
+	}
+}
+
+impl FakeVertexBufferLayout {
+	fn new<T>(attributes: Box<[wgpu::VertexAttribute]>, step_mode: wgpu::VertexStepMode) -> Self {
+		FakeVertexBufferLayout {
+			attributes: attributes, step_mode,
+			array_stride: std::mem::size_of::<T>() as wgpu::BufferAddress
+		}
+	}
+	fn real(&self) -> wgpu::VertexBufferLayout {
+		wgpu::VertexBufferLayout {
+			array_stride: self.array_stride,
+			step_mode: self.step_mode,
+			attributes: self.attributes.as_ref(),
+		}
+	}
+}
+
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 struct Vertex {
@@ -18,23 +50,8 @@ struct Vertex {
 }
 
 impl Vertex {
-	fn desc<'pain>() -> wgpu::VertexBufferLayout<'pain> {
-		wgpu::VertexBufferLayout {
-			array_stride: std::mem::size_of::<Vertex>() as wgpu::BufferAddress,
-			step_mode: wgpu::VertexStepMode::Vertex,
-			attributes: &[
-				wgpu::VertexAttribute {
-					offset: 0,
-					shader_location: 0,
-					format: wgpu::VertexFormat::Float32x3
-				},
-				wgpu::VertexAttribute {
-					offset: std::mem::size_of::<[f32; 3]>() as wgpu::BufferAddress,
-					shader_location: 1,
-					format: wgpu::VertexFormat::Float32x3
-				},
-			]
-		}
+	fn desc() -> FakeVertexBufferLayout {
+		fake_vertex_attr_array!(Vertex, Vertex, 0 => Float32x3, 1 => Float32x3)
 	}
 }
 
@@ -91,6 +108,7 @@ impl State {
 			//               computer)
 			present_mode: wgpu::PresentMode::Mailbox,
 		};
+		surface.configure(&device, &config);
 		let shader = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
 			label: Some("Shader"),
 			source: wgpu::ShaderSource::Wgsl(
@@ -111,7 +129,7 @@ impl State {
 					module: &shader,
 					entry_point: "vert",
 					buffers: &[
-						Vertex::desc(),
+						Vertex::desc().real(),
 					],
 				},
 				fragment: Some(wgpu::FragmentState {
@@ -160,8 +178,10 @@ impl State {
 		let new_size = self.target_size;
 		if new_size.width > 0 && new_size.height > 0 {
 			if force || new_size.width != self.size.width
-				|| new_size.height != self.size.height
-			{	self.size = new_size;
+			|| new_size.height != self.size.height {
+				trace!("resize");
+				debug!("sizing: {:?} -> {:?}", self.size, new_size);
+				self.size = new_size;
 				self.config.width = new_size.width;
 				self.config.height = new_size.height;
 				self.surface.configure(&self.device, &self.config);
@@ -202,7 +222,7 @@ impl State {
 					resolve_target: None,
 					ops: wgpu::Operations {
 						load: wgpu::LoadOp::Clear(wgpu::Color {
-							r: 0.1, g: 0.2, b: 0.3, a: 1.0,
+							r: 0.0, g: 0.0, b: 0.0, a: 1.0,
 						}),
 						store: true,
 					},
@@ -254,7 +274,7 @@ pub async fn start(info: StartInfo) {
 						.. // square
 					},.. // wow
 				} => {
-					info!("Fuck-off requested, Fucking off");
+					info!("quit requested");
 					*control_flow = event_loop::ControlFlow::Exit
 				},
 				event::WindowEvent::Resized(physical_size) => {

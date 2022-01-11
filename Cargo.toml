@@ -6,11 +6,17 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+# graphics
 wgpu = "0.12"
 winit = "0.26"
+# logging
 log = "0.4"
-image = "0.23"
 env_logger = "0.8.4"
+# image
+image = "0.23"
+# byte fucking
 bytemuck = { version = "1.7.3", features = [ "derive" ] }
+# async
 tokio = { version = "1.15.0", features = ["full"] }
+# math
 cgmath = "0.18.0"
