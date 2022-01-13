@@ -5,6 +5,7 @@ use winit::event_loop;
 use winit::window;
 use winit::dpi;
 use wgpu::util::DeviceExt;
+#[allow(unused_imports)]
 use log::{error, warn, info, debug, trace};
 
 /// game-specific info goes here
@@ -25,16 +26,6 @@ macro_rules! fake_vertex_attr_array {
 			Box::new(wgpu::vertex_attr_array![$($loc => $data),*]),
 			wgpu::VertexStepMode::$step
 		)
-	}
-}
-
-#[derive(Debug)]
-struct EGUIRepaintSignal();
-
-impl epi::backend::RepaintSignal for EGUIRepaintSignal {
-	fn request_repaint(&self) {
-		warn!("Repaint requested! do shit here i guess");
-		// self.0.lock().unwrap().send_event(Event::RequestRedraw).ok();
 	}
 }
 
