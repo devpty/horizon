@@ -9,14 +9,25 @@ edition = "2021"
 # graphics
 wgpu = "0.12"
 winit = "0.26"
+
 # logging
-log = "0.4"
+log = "0.4.0"
 env_logger = "0.8.4"
+
 # image
 image = "0.23"
+
 # byte fucking
 bytemuck = { version = "1.7.3", features = [ "derive" ] }
+
 # async
-tokio = { version = "1.15.0", features = ["full"] }
+tokio = { version = "1.15.0", features = [ "full" ] }
+
 # math
 cgmath = "0.18.0"
+
+# debug gui
+egui = "0.16.1"
+egui_wgpu_backend = "0.16.0"
+egui_winit_platform = "0.13.0"
+epi = "0.16.0"

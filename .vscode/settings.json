@@ -1,6 +1,9 @@
 {
 	"cSpell.words": [
+		"cgmath",
+		"egui",
 		"wgpu",
-		"wgsl"
+		"wgsl",
+		"winit"
 	]
 }
