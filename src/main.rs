@@ -1,6 +1,3 @@
-mod lib;
-use lib as horizon;
-
 #[tokio::main]
 async fn main() {
 	env_logger::Builder::from_default_env()

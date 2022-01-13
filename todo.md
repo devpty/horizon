@@ -3,9 +3,11 @@
 ## to-do
 - 1e1001 - entity system
 - 1e1001 - nightly push if i forget maybe?
+- 1e1001 - separate lib.rs into separate modules
 
 ## doing - 1e1001
 - 1e1001 - sprite batching and rendering
+	- 1e1001 - image support
 	- 1e1001 - atlas generation
 		- 1e1001 - rectpack2d port
 
