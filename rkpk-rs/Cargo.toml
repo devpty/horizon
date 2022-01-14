@@ -1,0 +1,9 @@
+[package]
+name = "rkpk"
+version = "0.1.0"
+authors = ["1e1001"]
+edition = "2021"
+
+[dependencies]
+image = {version = "0.23.14", default-features = false, features = ["png"]}
+rectangle-pack = "0.4.2"
