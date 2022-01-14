@@ -1,15 +1,17 @@
 # massive (eventually) todo list document
 
 ## to-do
-- 1e1001 - entity system
-- 1e1001 - nightly push if i forget maybe?
-- 1e1001 - separate lib.rs into separate modules
+- horizon/1e - entity system
+- horizon/1e - nightly push if i forget maybe?
+- horizon/1e - separate lib.rs into separate modules
+
 
 ## doing - 1e1001
-- 1e1001 - sprite batching and rendering
-	- 1e1001 - image support
-	- 1e1001 - atlas generation
-		- 1e1001 - rectpack2d port
+- horse/1e - make horse
+- horizon/1e - sprite batching and rendering
+	- horizon/1e - image support
+	- horizon/1e - atlas generation
+		- horizon/1e - rectpack2d port
 
 ## done
-- 1e1001 - integrate egui
+- horizon/1e - integrate egui
