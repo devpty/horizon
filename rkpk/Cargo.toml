@@ -2,6 +2,7 @@
 name = "rkpk"
 version = "0.1.0"
 authors = ["1e1001"]
+description = "image compositing wrapper for rectangle-pack"
 edition = "2021"
 
 [dependencies]

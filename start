@@ -1,0 +1,2 @@
+#!/usr/bin/env bash
+cd $1 && RUST_BACKTRACE=1 cargo run

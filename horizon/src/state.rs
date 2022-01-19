@@ -260,6 +260,7 @@ impl State {
 	) -> Self {
 		let size = window.inner_size();
 		let instance = wgpu::Instance::new(wgpu::Backends::all());
+		// SAFETY: it is
 		let surface = unsafe { instance.create_surface(window) };
 		let adapter = instance.request_adapter(
 			&wgpu::RequestAdapterOptions {
@@ -547,6 +548,7 @@ impl State {
 	fn resize_instance_buffer(&mut self, new_len: usize) {
 		let start_len = self.instances.len();
 		if start_len < new_len {
+			// SAFETY: RectInstRaw implements bytemuck::Zeroable
 			self.instances.resize(new_len, unsafe { std::mem::zeroed() });
 		}
 	}

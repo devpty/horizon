@@ -1,18 +1,16 @@
 use std::io;
 use serde::{ser, Serialize};
 use crate::{Error, Result};
-use crate::types::{self, VType};
+use crate::types::{self, VType, FormatStyle};
 
 pub struct Serializer<T: io::Write> {
-	output: T
+	output: T,
+	style: FormatStyle,
 }
 
 impl<T: io::Write> Serializer<T> {
-	fn new(output: T) -> Self {
-		Self { output }
-	}
-	fn unwrap(self) -> T {
-		self.output
+	fn new(output: T, style: FormatStyle) -> Self {
+		Self { output, style }
 	}
 	fn wr(&mut self, data: &[u8]) -> Result<()> {
 		match self.output.write(data) {
@@ -23,6 +21,8 @@ impl<T: io::Write> Serializer<T> {
 	fn wr_type(&mut self, data: VType) -> Result<()> {
 		self.wr(&[data as u8])
 	}
+	// type hell, because i thought it'd be a good idea to actually use different
+	//            int sizes
 	fn wr_int<V: types::IntLike>(&mut self, data: V) -> Result<()> {
 		match data.try_down() {
 			Some(down) => self.wr_int(down),
@@ -68,10 +68,13 @@ dict: (usize, pair[])
 pair: (val, val)
 */
 
-pub fn to_write<V: Serialize, T: io::Write>(value: &V, writer: T) -> Result<T> {
-	let mut serializer = Serializer::new(writer);
+pub fn to_write<V: Serialize, T: io::Write>(value: &V, writer: T, style: FormatStyle) -> Result<T> {
+	let mut serializer = Serializer::new(writer, style);
 	value.serialize(&mut serializer)?;
-	Ok(serializer.unwrap())
+	Ok(serializer.output)
+}
+pub fn to_bytes<V: Serialize>(value: &V, style: FormatStyle) -> Result<Vec<u8>> {
+	Ok(to_write(value, io::Cursor::new(vec![]), style)?.into_inner())
 }
 
 
@@ -167,9 +170,12 @@ impl<'a, T: io::Write> ser::Serializer for &'a mut Serializer<T> {
 		self,
 		_name: &'static str,
 		index: u32,
-		_variant: &'static str,
+		variant: &'static str,
 	) -> Result<()> {
-		self.serialize_u32(index)
+		match self.style {
+			FormatStyle::Compact => self.serialize_u32(index),
+			FormatStyle::Expressive => self.serialize_str(variant),
+		}
 	}
 	fn serialize_newtype_struct<V>(
 		self,
@@ -183,13 +189,18 @@ impl<'a, T: io::Write> ser::Serializer for &'a mut Serializer<T> {
 		self,
 		_name: &'static str,
 		index: u32,
-		_variant: &'static str,
+		variant: &'static str,
 		value: &V,
 	) -> Result<()>
 	where V: ?Sized + Serialize {
 		self.wr_type(VType::Pair)?;
-		self.wr_type(VType::U32)?;
-		self.wr_int(index)?;
+		match self.style {
+			FormatStyle::Compact => {
+				self.wr_type(VType::U32)?;
+				self.wr_int(index)?;
+			},
+			FormatStyle::Expressive => self.serialize_str(variant)?,
+		}
 		value.serialize(self)
 	}
 	fn serialize_seq(self, len: Option<usize>) -> Result<Self::SerializeSeq> {
@@ -211,12 +222,17 @@ impl<'a, T: io::Write> ser::Serializer for &'a mut Serializer<T> {
 		self,
 		_name: &'static str,
 		index: u32,
-		_variant: &'static str,
+		variant: &'static str,
 		len: usize,
 	) -> Result<Self::SerializeTupleVariant> {
 		self.wr_type(VType::Pair)?;
-		self.wr_type(VType::U32)?;
-		self.wr_int(index)?;
+		match self.style {
+			FormatStyle::Compact => {
+				self.wr_type(VType::U32)?;
+				self.wr_int(index)?;
+			},
+			FormatStyle::Expressive => self.serialize_str(variant)?,
+		}
 		self.wr_type(VType::List)?;
 		self.wr_int(len)?;
 		Ok(self)
@@ -232,19 +248,30 @@ impl<'a, T: io::Write> ser::Serializer for &'a mut Serializer<T> {
 		_name: &'static str,
 		len: usize,
 	) -> Result<Self::SerializeStruct> {
-		self.serialize_map(Some(len))
+		match self.style {
+			FormatStyle::Compact => self.serialize_seq(Some(len)),
+			FormatStyle::Expressive => self.serialize_map(Some(len))
+		}
 	}
 	fn serialize_struct_variant(
 		self,
 		_name: &'static str,
 		index: u32,
-		_variant: &'static str,
+		variant: &'static str,
 		len: usize,
 	) -> Result<Self::SerializeStructVariant> {
 		self.wr_type(VType::Pair)?;
-		self.wr_type(VType::U32)?;
-		self.wr_int(index)?;
-		self.serialize_seq(Some(len))
+		match self.style {
+			FormatStyle::Compact => {
+				self.wr_type(VType::U32)?;
+				self.wr_int(index)?;
+			},
+			FormatStyle::Expressive => self.serialize_str(variant)?,
+		}
+		match self.style {
+			FormatStyle::Compact => self.serialize_seq(Some(len)),
+			FormatStyle::Expressive => self.serialize_map(Some(len))
+		}
 	}
 }
 
@@ -284,7 +311,9 @@ macro_rules! impl_special_serialize {
 	(double_field) => {
 		fn serialize_field<V>(&mut self, key: &'static str, value: &V) -> Result<()>
 		where V: ?Sized + Serialize {
-			key.serialize(&mut **self)?;
+			if let FormatStyle::Expressive = self.style {
+				key.serialize(&mut **self)?;
+			}
 			value.serialize(&mut **self)
 		}
 	};

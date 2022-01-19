@@ -1,7 +1,8 @@
 [package]
-name = "horizon"
+name = "horizon-engine"
 version = "0.1.0"
 edition = "2021"
+description = "simple 2d game framework"
 authors = ["1e1001"]
 
 [dependencies]

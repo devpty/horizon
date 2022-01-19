@@ -2,6 +2,7 @@
 name = "horizon_horse"
 version = "0.1.0"
 edition = "2021"
+description = "simple data serialization format"
 authors = ["1e1001"]
 
 [dependencies]

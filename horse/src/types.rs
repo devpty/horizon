@@ -1,4 +1,51 @@
-use std::{collections};
+use std::{collections, fmt, hash::{self, Hash}};
+
+/// style to use for serializing, this is automatically detected for
+/// deserializing
+pub enum FormatStyle {
+	/// store struct properties / enum variants using numerical indexes
+	Compact,
+	/// store struct properties / enum variants using their names, as `bin` values
+	Expressive,
+}
+
+/// a structure that has multiple versions
+pub trait Versioned<'de>: From<Self::Old> + serde::Deserialize<'de> {
+	const VERSION: Version;
+	const IS_NEW: bool;
+	type Old: Versioned<'de>;
+}
+
+/// a version number in semver
+#[derive(PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize)]
+pub struct Version(pub u16, pub u16, pub u16);
+
+#[macro_export]
+macro_rules! impl_versioned {
+	($(($va:tt $vb:tt $vc:tt , $from:ty $( => $target:ty)?))*) => {
+		$(horizon_horse::impl_versioned!($va $vb $vc , $from $( => $target)?);)*
+	};
+	($va:tt $vb:tt $vc:tt , $from:ty => $target:ty) => {
+		impl<'a> horizon_horse::Versioned<'a> for $target {
+			const VERSION: horizon_horse::Version = horizon_horse::Version($va, $vb, $vc);
+			const IS_NEW: bool = true;
+			type Old = $from;
+		}
+	};
+	($va:tt $vb:tt $vc:tt , $target:ty) => {
+		impl<'a> horizon_horse::Versioned<'a> for $target {
+			const VERSION: horizon_horse::Version = horizon_horse::Version($va, $vb, $vc);
+			const IS_NEW: bool = false;
+			type Old = Self;
+		}
+	};
+}
+
+impl fmt::Debug for Version {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		f.write_fmt(format_args!("{}.{}.{}", self.0, self.1, self.2))
+	}
+}
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum VType {
@@ -51,28 +98,106 @@ pub enum VValue {
 	F64(f64),
 	Char(char),
 	Bin(Vec<u8>),
-	Opt(Option<Box<VValue>>),
-	List(Vec<VValue>),
-	Dict(collections::HashMap<Vec<u8>, VValue>),
-	Pair(Box<(VValue, VValue)>),
+	Opt(bool),
+	List(usize),
+	Dict(usize),
+	Pair,
 }
 
-// impl PartialEq for VValue {
-// 	fn eq(&self, other: &Self) -> bool {
-// 		self.as_type() == other.as_type() && match self {
-// 			Self::Null => true,
-// 			Self::Dict(a) => match other {Self::Dict(b) => {
+// all this hash stuff is a dirty hack in order to be "able" to use a hashmap
+// as a key in a hashmap, although you technically still can't since hashmaps
+// aren't deterministic enough. Also yes i know you shouldn't implement Eq on
+//                              a float, and i don't care i want this to work
 
-// 			}}
-// 			a => match other {b => a == b, _ => false},
-// 		}
-// 	}
+trait CustomHash {
+	fn hash<H: hash::Hasher>(&self, state: &mut H);
+	fn eq(&self, other: &Self) -> bool;
+}
+
+#[derive(Debug, Clone)]
+#[repr(transparent)]
+struct HashWrap<T: CustomHash>(T);
+
+impl<T: CustomHash> hash::Hash for HashWrap<T> {
+	fn hash<H: hash::Hasher>(&self, state: &mut H) {
+		self.0.hash(state)
+	}
+}
+
+impl<T: CustomHash> std::ops::Deref for HashWrap<T> {
+	type Target = T;
+	fn deref(&self) -> &Self::Target {
+		&self.0
+	}
+}
+
+impl<T: CustomHash> std::ops::DerefMut for HashWrap<T> {
+	fn deref_mut(&mut self) -> &mut Self::Target {
+		&mut self.0
+	}
+}
+
+impl<T: CustomHash> PartialEq for HashWrap<T> {
+	fn eq(&self, other: &HashWrap<T>) -> bool {
+		self.0.eq(other)
+	}
+}
+
+impl<T: CustomHash> Eq for HashWrap<T> {}
+
+impl CustomHash for f32 {
+	fn hash<H: hash::Hasher>(&self, state: &mut H) {
+		self.to_be_bytes().hash(state);
+	}
+	fn eq(&self, other: &Self) -> bool {
+		self == other
+	}
+}
+
+impl CustomHash for f64 {
+	fn hash<H: hash::Hasher>(&self, state: &mut H) {
+		self.to_be_bytes().hash(state);
+	}
+	fn eq(&self, other: &Self) -> bool {
+		self == other
+	}
+}
+
+impl<K, V> CustomHash for collections::HashMap<K, V> {
+	fn hash<H: hash::Hasher>(&self, _: &mut H) {
+		panic!("Can't hash() a HashMap, are you parsing a key?");
+	}
+	fn eq(&self, _: &Self) -> bool {
+		panic!("Can't eq() a HashMap, are you parsing a key?");
+	}
+}
+
+// #[derive(Debug, Clone, Hash, PartialEq, Eq)]
+// pub enum VTreeValue {
+// 	Null,
+// 	Bool(bool),
+// 	I8(i8),
+// 	I16(i16),
+// 	I32(i32),
+// 	I64(i64),
+// 	I128(i128),
+// 	U8(u8),
+// 	U16(u16),
+// 	U32(u32),
+// 	U64(u64),
+// 	U128(u128),
+// 	F32(HashWrap<f32>),
+// 	F64(HashWrap<f64>),
+// 	Char(char),
+// 	Bin(Vec<u8>),
+// 	Opt(Option<Box<VTreeValue>>),
+// 	List(Vec<VTreeValue>),
+// 	Dict(HashWrap<collections::HashMap<VTreeValue, VTreeValue>>),
+// 	Pair,
 // }
 
-// impl Eq for VValue {}
-
 impl VValue {
-	fn as_type(&self) -> VType {
+	pub fn as_type(&self) -> VType {
 		match self {
 			Self::Null => VType::Null,
 			Self::Bool(false) => VType::False,
@@ -91,11 +216,11 @@ impl VValue {
 			Self::F64(_)  => VType::F64,
 			Self::Char(_) => VType::Char,
 			Self::Bin(_)  => VType::Bin,
-			Self::Opt(Some(_)) => VType::OptSome,
-			Self::Opt(None)    => VType::OptNone,
+			Self::Opt(true) => VType::OptSome,
+			Self::Opt(false)    => VType::OptNone,
 			Self::List(_) => VType::List,
 			Self::Dict(_) => VType::Dict,
-			Self::Pair(_) => VType::Pair,
+			Self::Pair => VType::Pair,
 		}
 	}
 }
@@ -107,6 +232,8 @@ pub trait CastDown {
 	const SMALL_MAX: Self;
 	const SIG_SMALL: u8;
 	const SIG_LARGE: u8;
+	const CAN_DOWN: bool;
+	const IS_SIGNED: bool;
 	fn try_down(self) -> Option<Self::Down>;
 	fn from_down(v: Self::Down) -> Self;
 }
@@ -116,7 +243,7 @@ pub trait CanByte {
 	fn from_bytes(v: Vec<u8>) -> Self;
 }
 
-pub trait IntLike: CanByte + CastDown + Default + TryFrom<u8> + num_traits::int::PrimInt {}
+pub trait IntLike: CanByte + CastDown + Default + std::fmt::LowerHex + TryFrom<u8> + num_traits::int::PrimInt {}
 pub trait FloatLike: CanByte + num_traits::float::Float {}
 
 macro_rules! impl_cast_down {
@@ -128,16 +255,20 @@ macro_rules! impl_cast_down {
 		const SMALL_MIN: $type = -$max;
 		const SMALL_MAX: $type = $max;
 	};
+	(sign_from_min u) => {false};
+	(sign_from_min i) => {true};
 	(extra $type:ty, ($sig_small:tt $sig_large:tt $min:tt $max:expr)) => {
 		impl_cast_down!{small $type, $min $max}
 		const SIG_SMALL: u8 = $sig_small << 5;
 		const SIG_LARGE: u8 = $sig_large << 5;
+		const IS_SIGNED: bool = impl_cast_down!{sign_from_min $min};
 	};
 	(impl $type:ty, $down:ty, $extra:tt) => {
 		impl CastDown for $type {
 			type Down = $down;
 			type DownSizing = Self::Down;
 			impl_cast_down!{extra Self, $extra}
+			const CAN_DOWN: bool = true;
 			fn try_down(self) -> Option<Self::Down> {
 				match <$down>::try_from(self) {
 					Ok(v) => Some(v),
@@ -151,6 +282,7 @@ macro_rules! impl_cast_down {
 		impl CastDown for $target {
 			type Down = Self;
 			type DownSizing = ();
+			const CAN_DOWN: bool = false;
 			impl_cast_down!{extra Self, $extra}
 			fn try_down(self) -> Option<Self::Down> { None }
 			fn from_down(v: Self) -> Self {v}
@@ -168,17 +300,17 @@ macro_rules! impl_cast_down {
 		impl_cast_down!{arch $target "128" $v128}
 	};
 	($target:tt) => {impl_cast_down!{$target $target}};
-	($target:tt i8)   => {impl_cast_down!{default $target,   (0 1 i 0x40)}};
+	($target:tt i8)   => {impl_cast_down!{default $target,   (0 1 i 0x10)}};
 	($target:tt i16)  => {impl_cast_down!{impl $target, i8,  (1 2 i 0x1000)}};
-	($target:tt i32)  => {impl_cast_down!{impl $target, i16, (2 3 i 0x10000000)}};
-	($target:tt i64)  => {impl_cast_down!{impl $target, i32, (3 4 i 0x1000000000000000)}};
-	($target:tt i128) => {impl_cast_down!{impl $target, i64, (4 5 i 0x10000000000000000000000000000000)}};
+	($target:tt i32)  => {impl_cast_down!{impl $target, i16, (2 3 i 0x100000)}};
+	($target:tt i64)  => {impl_cast_down!{impl $target, i32, (3 4 i 0x1000000000)}};
+	($target:tt i128) => {impl_cast_down!{impl $target, i64, (4 5 i 0x100000000000000000)}};
 	($target:tt isize) => {impl_cast_down!{ar $target i8 i16 i32 i64 i128}};
-	($target:tt u8)   => {impl_cast_down!{default $target,   (0 1 u 0x80)}};
+	($target:tt u8)   => {impl_cast_down!{default $target,   (0 1 u 0x20)}};
 	($target:tt u16)  => {impl_cast_down!{impl $target, u8,  (1 2 u 0x2000)}};
-	($target:tt u32)  => {impl_cast_down!{impl $target, u16, (2 3 u 0x20000000)}};
-	($target:tt u64)  => {impl_cast_down!{impl $target, u32, (3 4 u 0x2000000000000000)}};
-	($target:tt u128) => {impl_cast_down!{impl $target, u64, (4 5 u 0x20000000000000000000000000000000)}};
+	($target:tt u32)  => {impl_cast_down!{impl $target, u16, (2 3 u 0x200000)}};
+	($target:tt u64)  => {impl_cast_down!{impl $target, u32, (3 4 u 0x2000000000)}};
+	($target:tt u128) => {impl_cast_down!{impl $target, u64, (4 5 u 0x200000000000000000)}};
 	($target:tt usize) => {impl_cast_down!{ar $target u8 u16 u32 u64 u128}};
 }
 
