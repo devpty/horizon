@@ -7,6 +7,9 @@ use winit::dpi;
 use log::{error, warn, info, debug, trace};
 
 mod state;
+mod debugger;
+mod egui_util;
+mod utils;
 
 /// game-specific info goes here
 pub struct StartInfo {
@@ -50,13 +53,7 @@ pub async fn start(info: StartInfo) {
 			event::Event::WindowEvent {
 				ref event, window_id
 			} if window_id == window.id() => if !state.input(event) { match event {
-				event::WindowEvent::CloseRequested | event::WindowEvent::KeyboardInput {
-					input: event::KeyboardInput {
-						state: event::ElementState::Pressed,
-						virtual_keycode: Some(event::VirtualKeyCode::Escape),
-						.. // square
-					},.. // wow
-				} => {
+				event::WindowEvent::CloseRequested => {
 					info!("quit requested");
 					*control_flow = event_loop::ControlFlow::Exit
 				},

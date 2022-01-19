@@ -39,6 +39,9 @@ impl fmt::Debug for ImageCacheEntry {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		f.write_fmt(format_args!("ImageCacheEntry({}×{})", self.data.width(), self.data.height()))
 	}
+	fn crop(r: Rect) {
+
+	}
 }
 
 #[derive(Debug, Clone)]
@@ -48,20 +51,14 @@ impl ImageCache {
 	pub fn new() -> Self {
 		Self(collections::HashMap::new())
 	}
-	fn fill(&mut self, path: &'static str, load: impl FnOnce() -> image::RgbaImage) -> &ImageCacheEntry {
-		self.0.insert(path, ImageCacheEntry {
-			// todo: actual image loading code
-			data: load()
-		});
-		self.0.get(path).unwrap()
-	}
-	fn get_fill(&mut self, path: &'static str) -> &ImageCacheEntry {
-		if self.0.contains_key(path) {
-			self.0.get(path).unwrap()
-		} else {
-			self.fill(path, &|| image::io::Reader::open(path).unwrap().decode().unwrap().to_rgba8())
-		// 	// None => cache.fill(path, io::read_to_vec(path)),
+	fn get_fill(&mut self, path: &'static str, image: &Image) -> &ImageCacheEntry {
+		if !self.0.contains_key(path) {
+			println!("loading {:?}", image);
+			self.0.insert(path, ImageCacheEntry {
+				data: image.to_data()
+			});
 		}
+		self.0.get(path).unwrap()
 	}
 }
 
@@ -71,9 +68,22 @@ pub enum Image {
 }
 
 impl Image {
-	pub fn to_entry<'a>(&self, cache: &'a mut ImageCache) -> &'a ImageCacheEntry {
+	pub fn to_path(&self) -> &'static str {
 		match self {
-			Self::External(path) => cache.get_fill(path),
+			Self::External(path) => path,
+		}
+	}
+	pub fn to_entry<'a>(&self, cache: &'a mut ImageCache) -> &'a ImageCacheEntry {
+		cache.get_fill(self.to_path(), &self)
+	}
+	pub fn to_data(&self) -> image::RgbaImage {
+		match self {
+			Self::External(path) =>
+				image::io::Reader::open(path)
+					.unwrap()
+					.decode()
+					.unwrap()
+					.to_rgba8(),
 		}
 	}
 }

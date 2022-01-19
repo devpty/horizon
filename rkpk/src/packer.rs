@@ -1,4 +1,5 @@
 use std::collections;
+use std::hash::{Hash, Hasher};
 
 #[derive(Debug)]
 pub struct Packer {

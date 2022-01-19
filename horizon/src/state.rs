@@ -1,11 +1,10 @@
-use std::iter;
-use winit::dpi;
+use std::{collections, iter};
+use winit::{dpi, event, window};
 use wgpu::util::DeviceExt;
-use winit::event;
-use winit::window;
 #[allow(unused_imports)]
 use log::{error, warn, info, debug, trace};
-use std::slice;
+use crate::debugger;
+use crate::egui_util::{Component};
 
 /// wgpu::VertexBufferLayout that owns it's attributes
 struct FakeVertexBufferLayout {
@@ -135,98 +134,6 @@ impl CanBuffer for RectInstRaw {
 	}
 }
 
-
-const VERTEXES: &[Vertex] = &[
-	Vertex { position: [0, 0] },
-	Vertex { position: [1, 0] },
-	Vertex { position: [0, 1] },
-	Vertex { position: [1, 1] },
-];
-const INDEXES: &[u16] = &[
-	0, 2, 1, 1, 2, 3
-];
-
-#[derive(Clone, Debug)]
-struct RingBuffer<T: Clone>(Vec<T>, usize);
-// impl<T: Clone + Default> RingBuffer<T> {
-// 	fn new(size: usize) -> Self {
-// 		Self(vec![T::default(); size], 0)
-// 	}
-// }
-impl<T: Clone> RingBuffer<T> {
-	fn new_fill(size: usize, value: T) -> Self {
-		Self(vec![value; size], 0)
-	}
-	fn push(&mut self, item: T) {
-		self.0[self.1] = item;
-		self.1 += 1;
-		if self.1 == self.0.len() { self.1 = 0; }
-	}
-	fn iter(&self) -> std::iter::Chain<slice::Iter<'_, T>, slice::Iter<'_, T>> {
-		let (l, r) = self.0.split_at(self.1);
-		r.iter().chain(l.iter())
-	}
-	fn len(&self) -> usize {
-		self.0.len()
-	}
-}
-
-struct EguiState {
-	profiler_data: RingBuffer<f32>,
-	panel_debug_open: bool,
-}
-
-impl EguiState {
-	fn new() -> Self {
-		Self {
-			profiler_data: RingBuffer::new_fill(512, 1.0),
-			panel_debug_open: false,
-		}
-	}
-	fn render(&mut self, context: egui::CtxRef, delta_time: f64) {
-		self.profiler_data.push(delta_time as f32);
-		egui::Window::new("panel_opener")
-			.auto_sized()
-			// .frame(egui::Frame::none())
-			.title_bar(false)
-			.fixed_pos(egui::pos2(0.0, 0.0))
-			.show(&context, |ui| {
-				ui.label("horizon");
-				if ui.button("debug").clicked() {
-					self.panel_debug_open = !self.panel_debug_open;
-				}
-		});
-		if self.panel_debug_open {
-			egui::SidePanel::right("debug_panel")
-				.resizable(false)
-				.show(&context, |ui| {
-					ui.label(egui::RichText::from("Horizon Debug").text_style(egui::TextStyle::Heading));
-					let framerate_sum = self.profiler_data.iter().fold(0.0, |l, r| l + r);
-					ui.label(format!("running at {:.0}fps", self.profiler_data.len() as f32 / framerate_sum));
-					use egui::plot;
-					plot::Plot::new("debug_plot")
-						.view_aspect(2.0)
-						.allow_drag(false)
-						.allow_zoom(false)
-						.include_x(0)
-						.include_x(1)
-						.include_y(0)
-						.show_x(false)
-						.show(ui, |plot| {
-							let mut framerate_part = 0f32;
-							plot.line(plot::Line::new(plot::Values::from_values_iter(
-								self.profiler_data.iter().enumerate().map(|n| {
-									framerate_part += *n.1;
-									plot::Value::new(1.0 + framerate_part - framerate_sum, *n.1 as f64)
-									// plot::Value::new(n.0 as f64 / self.profiler_data.len() as f64, *n.1 as f64)
-								}).filter(|n| n.x >= 0.0)
-							)));
-					});
-			});
-		}
-	}
-}
-
 /// global state info
 pub struct State {
 	surface: wgpu::Surface,
@@ -238,10 +145,9 @@ pub struct State {
 	render_pipeline: wgpu::RenderPipeline,
 	vertex_buffer: wgpu::Buffer,
 	index_buffer: wgpu::Buffer,
-	index_len: u32,
 	egui_platform: egui_winit_platform::Platform,
 	egui_rpass: egui_wgpu_backend::RenderPass,
-	egui_state: EguiState,
+	egui_state: debugger::DebuggerState,
 	instances: Vec<RectInstRaw>,
 	instance_buffer: wgpu::Buffer,
 	instance_len: usize,
@@ -250,6 +156,7 @@ pub struct State {
 	world_uniform_bind_group: wgpu::BindGroup,
 	start_info: crate::StartInfo,
 	atlas_bind_group: wgpu::BindGroup,
+	pressed_keys: collections::HashMap<u32, (bool, bool)>,
 }
 
 impl State {
@@ -408,13 +315,20 @@ impl State {
 		let vertex_buffer = device.create_buffer_init(
 			&wgpu::util::BufferInitDescriptor {
 				label: Some("VertexBuffer"),
-				contents: bytemuck::cast_slice(VERTEXES),
+				contents: bytemuck::cast_slice(&[
+					Vertex { position: [0, 0] },
+					Vertex { position: [1, 0] },
+					Vertex { position: [0, 1] },
+					Vertex { position: [1, 1] },
+				]),
 				usage: wgpu::BufferUsages::VERTEX,
 		});
 		let index_buffer = device.create_buffer_init(
 			&wgpu::util::BufferInitDescriptor {
 				label: Some("IndexBuffer"),
-				contents: bytemuck::cast_slice(INDEXES),
+				contents: bytemuck::cast_slice(&[
+					0u16, 2u16, 1u16, 1u16, 2u16, 3u16
+				]),
 				usage: wgpu::BufferUsages::INDEX,
 		});
 		let instance_buffer = device.create_buffer_init(
@@ -515,8 +429,8 @@ impl State {
 			instances: Vec::new(),
 			instance_len: 0,
 			target_size: size,
-			index_len: INDEXES.len() as u32,
-			egui_state: EguiState::new(),
+			egui_state: debugger::DebuggerState::new(),
+			pressed_keys: collections::HashMap::new(),
 		}
 	}
 	fn update_instances(&mut self) {
@@ -598,7 +512,10 @@ impl State {
 		}
 	}
 	/// global window event handling
-	pub fn handle_event<T>(&mut self, event: &event::Event<T>) -> bool {
+	pub fn handle_event<T>(&mut self, event: &event::Event<T>) -> bool
+	// where T: std::fmt::Debug {
+	// 	debug!("event {:?}", event);
+	{
 		self.egui_platform.handle_event(&event);
 		false
 	}
@@ -608,8 +525,20 @@ impl State {
 	}
 	/// process an event, if it returns false then it'll fall back to horizon
 	/// handling
-	pub fn input(&mut self, _event: &event::WindowEvent) -> bool {
-		false
+	pub fn input(&mut self, event: &event::WindowEvent) -> bool {
+		// debug!("input {:?}", event);
+		match event {
+			event::WindowEvent::KeyboardInput {input, ..} => {
+				let state = (
+					input.state == winit::event::ElementState::Pressed,
+					true
+				);
+				self.pressed_keys.insert(input.scancode, state);
+				debug!("keyboard {:?}", state);
+				false
+			},
+			_ => false
+		}
 	}
 	/// run on a game-tick
 	pub fn update(&mut self) {
@@ -678,9 +607,7 @@ impl State {
 		);
 		render_pass.set_bind_group(0, &self.atlas_bind_group, &[]);
 		render_pass.set_bind_group(1, &self.world_uniform_bind_group, &[]);
-		render_pass.draw_indexed(
-			0..self.index_len, 0, 0..self.instances.len() as _
-		);
+		render_pass.draw_indexed(0..6, 0, 0..self.instances.len() as _);
 		drop(render_pass);
 		self.egui_rpass.execute(
 			&mut encoder,

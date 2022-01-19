@@ -7,15 +7,15 @@ authors = ["1e1001"]
 
 [dependencies]
 # graphics
-wgpu = "0.12"
-winit = "0.26"
+wgpu = "0.12.0"
+winit = "0.26.1"
 
 # logging
-log = "0.4.0"
-env_logger = "0.8.4"
+log = "0.4.14"
+env_logger = "0.9.0"
 
 # image
-image = "0.23"
+image = {version = "0.23.14", default-features = false, features = ["png"]}
 
 # byte fucking
 bytemuck = { version = "1.7.3", features = [ "derive" ] }
