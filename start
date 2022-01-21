@@ -1,2 +1,11 @@
 #!/usr/bin/env bash
-cd $1 && RUST_BACKTRACE=1 cargo run
+## this script starts a crate binary from the root dir
+## there are a few ways to do it though
+
+## the intended way
+# cargo run -p $1
+
+## the cool way™
+## this puts the cwd inside the project when it runs it
+# cd $1 && RUST_BACKTRACE=1 cargo run
+
