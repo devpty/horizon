@@ -5,6 +5,6 @@ async fn main() {
 		.filter_module("horizon", log::LevelFilter::max())
 		.init();
 	horizon_engine::start(horizon_engine::StartInfo {
-		start_state: true,
+		integer_mode: true,
 	}).await;
 }

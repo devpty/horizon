@@ -13,7 +13,7 @@ mod utils;
 
 /// game-specific info goes here
 pub struct StartInfo {
-	pub start_state: bool,
+	pub integer_mode: bool,
 }
 
 /// start horizon

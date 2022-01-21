@@ -505,7 +505,7 @@ impl State {
 				self.config.height = new_size.height;
 				self.surface.configure(&self.device, &self.config);
 				self.world_uniform.update_screen_size(
-					new_size.width, new_size.height, self.start_info.start_state
+					new_size.width, new_size.height, self.start_info.integer_mode
 				);
 				self.send_uniform_buffer();
 			}
