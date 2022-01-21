@@ -1,6 +1,12 @@
+# output folders
+debug/
 target/
+# lock folders, i think for libs you might actually keep them
 Cargo.lock
+# rustfmt backup files
 **/*.rs.bk
-
+# windows debug info
+*.pdb
 # no ide cruft pls
 .idea/
+.vscode/
