@@ -50,12 +50,14 @@ impl ImageCache {
 #[derive(Debug, Copy, Clone)]
 pub enum Image {
 	External(&'static str),
+	Bytes(&'static [u8]),
 }
 
 impl Image {
 	pub fn to_path(&self) -> &'static str {
 		match self {
 			Self::External(path) => path,
+			Self::Bytes(_) => "[byte-array]"
 		}
 	}
 	pub fn to_entry<'a>(&self, cache: &'a mut ImageCache) -> &'a ImageCacheEntry {
@@ -69,6 +71,10 @@ impl Image {
 					.decode()
 					.unwrap()
 					.to_rgba8(),
+			Self::Bytes(data) =>
+				image::load_from_memory(data)
+					.unwrap()
+					.to_rgba8()
 		}
 	}
 }

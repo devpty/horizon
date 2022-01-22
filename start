@@ -3,9 +3,10 @@
 ## there are a few ways to do it though
 
 ## the intended way
-# cargo run -p $1
+cargo run -p $1
 
 ## the cool way™
 ## this puts the cwd inside the project when it runs it
+## however, this creates a lot of cache duplication (each folder gets it's
+##                                                   own cargo target folder)
 # cd $1 && RUST_BACKTRACE=1 cargo run
-

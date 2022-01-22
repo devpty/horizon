@@ -1,15 +1,15 @@
 fn main() {
 	let mut cache = rkpk::ImageCache::new();
-	let _packer = rkpk::Packer::new()
-		.allow_flipping(false)
-		.add_image("font", None, &mut cache,
-			rkpk::Image::External("src/assets/font.png"),
-			rkpk::ImageType::Tiled((0, 0), (8, 16), (0, 0), (16, 8)))
-		.add_image("logo", None, &mut cache,
-			rkpk::Image::External("src/assets/logo.png"),
-			rkpk::ImageType::Whole)
-		.dedup(&mut cache)
-		.pack(&mut cache);
+	let mut packer = rkpk::Packer::new();
+	packer.allow_flipping(false);
+	packer.add_image("font", None, &mut cache,
+		rkpk::Image::External("rkpk/src/assets/font.png"),
+		rkpk::ImageType::Tiled((0, 0), (8, 16), (0, 0), (16, 8)));
+	packer.add_image("logo", None, &mut cache,
+		rkpk::Image::External("rkpk/src/assets/logo.png"),
+		rkpk::ImageType::Whole);
+	packer.dedup(&mut cache);
+	packer.pack(&mut cache);
 	// println!("{:#?}", packer);
-	// println!("{:#?}", cache);
+	println!("{:#?}", cache);
 }
