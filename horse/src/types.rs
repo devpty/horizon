@@ -48,6 +48,7 @@ impl fmt::Debug for Version {
 }
 
 #[derive(Debug, Copy, Clone, PartialEq)]
+#[repr(u8)]
 pub enum VType {
 	Null = 0, False, True,
 	I8, I16, I32, I64, I128,
