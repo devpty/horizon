@@ -3,9 +3,7 @@
 // deps: none
 // stat: done
 
-pub trait Rect {
-	fn get_x(&self) -> u32;
-	fn get_y(&self) -> u32;
+pub trait Rect: Default + Copy + Clone {
 	fn get_w(&self) -> u32;
 	fn get_h(&self) -> u32;
 	fn area(&self) -> u32;
@@ -14,7 +12,10 @@ pub trait Rect {
 	fn path_mul(&self) -> f64 {self.get_wh().path_mul()}
 }
 
-pub trait OutputRectType: Rect {}
+pub trait OutputRect: Rect {
+	fn get_x(&self) -> u32;
+	fn get_y(&self) -> u32;
+}
 
 #[derive(Debug, Default, Copy, Clone)]
 pub struct RectWH {
@@ -45,15 +46,13 @@ impl RectWH {
 	pub fn path_mul(&self) -> f64 {
 		self.max_size() as f64 / (self.min_size() * self.area()) as f64
 	}
-	pub fn expand_with_mut<R: Rect>(&mut self, r: R) {
+	pub fn expand_with_mut<R: OutputRect>(&mut self, r: R) {
 		self.w = self.w.max(r.get_x() + r.get_w());
 		self.h = self.h.max(r.get_y() + r.get_h());
 	}
 }
 
 impl Rect for RectWH {
-	fn get_x(&self) -> u32 { 0 }
-	fn get_y(&self) -> u32 { 0 }
 	fn get_w(&self) -> u32 { self.w }
 	fn get_h(&self) -> u32 { self.h }
 	fn area(&self) -> u32 { self.w * self.h }
@@ -79,13 +78,15 @@ impl RectXYWH {
 }
 
 impl Rect for RectXYWH {
-	fn get_x(&self) -> u32 { self.x }
-	fn get_y(&self) -> u32 { self.y }
 	fn get_w(&self) -> u32 { self.w }
 	fn get_h(&self) -> u32 { self.h }
 	fn area(&self) -> u32 { self.w * self.h }
 	fn perimeter(&self) -> u32 { 2 * (self.w + self.h) }
 	fn get_wh(&self) -> RectWH {RectWH::from(self.w, self.h)}
+}
+impl OutputRect for RectXYWH {
+	fn get_x(&self) -> u32 { self.x }
+	fn get_y(&self) -> u32 { self.y }
 }
 
 #[derive(Debug, Default, Copy, Clone)]
@@ -109,9 +110,7 @@ impl RectXYWHF {
 	}
 }
 
-impl Rect for RectXYWHF {OutputRectType
-	fn get_x(&self) -> u32 { self.x }
-	fn get_y(&self) -> u32 { self.y }
+impl Rect for RectXYWHF {
 	fn get_w(&self) -> u32 { self.w }
 	fn get_h(&self) -> u32 { self.h }
 	fn area(&self) -> u32 { self.w * self.h }
@@ -119,7 +118,9 @@ impl Rect for RectXYWHF {OutputRectType
 	fn get_wh(&self) -> RectWH {RectWH::from(self.w, self.h)}
 }
 
-impl OutputRectType for RectXYWH {}
-impl OutputRectType for RectXYWHF {}
+impl OutputRect for RectXYWHF {
+	fn get_x(&self) -> u32 { self.x }
+	fn get_y(&self) -> u32 { self.y }
+}
 
 pub type SpaceRect = RectXYWH;

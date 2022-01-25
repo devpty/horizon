@@ -1,5 +1,6 @@
 use std::{collections, fmt};
 // use std::hash::{Hash, Hasher};
+use super::rectpack2d;
 
 #[derive(Copy, Clone)]
 pub enum PackerImage {
@@ -103,7 +104,8 @@ impl Packer {
 		}
 		// iterate through atlases and generate
 		for (i, iv) in rects_by_layer {
-			let mut rects_to_place = rectangle_pack::GroupedRectsToPlace::<_, ()>::new();
+			let mut rects_to_place = Vec::new();
+			let mut rects_info = Vec::new();
 			for (j, jv) in iv {
 				for (k, kv) in jv.iter().enumerate() {
 					// todo: image size equality checks
@@ -111,32 +113,24 @@ impl Packer {
 						PackerImage::Unique {
 							image, source_loc, packed_pos
 						} => {
-							let rect = rectangle_pack::RectToInsert::new(packed_pos.2, packed_pos.3, 1);
+							let rect = rectpack2d::rect_structs::RectXYWHF::from(0, 0, packed_pos.2, packed_pos.3, false);
 							// rotation isn't yet supported :(
 							// rect.allow_global_z_axis_rotation = true;
-							rects_to_place.push_rect(
-								(j, k), // lol
-								None, // we don't use rectangle-pack's group implementation
-								rect,
-							);
+							rects_to_place.push(rect);
+							rects_info.push((j, k))
 						},
 						// don't handle duplicates as their originals are already handled
 						PackerImage::Duplicate(..) => {},
 					}
 				}
 			}
-			// we *might* be able to do this in one pass via multiple bins
-			// but i think that's not how this works \shrug
-			let mut target_bins = collections::BTreeMap::new();
-			target_bins.insert((), rectangle_pack::TargetBin::new(16384, 16384, 1));
-			let rect_placements = rectangle_pack::pack_rects(
-				&rects_to_place,
-				&mut target_bins,
-				&rectangle_pack::volume_heuristic,
-				&rectangle_pack::contains_smallest_box,
-			).unwrap(); // unwrap-fail: rectangle packing is able to fail probably
-			// figure out used area
-			// for now we're using a sweep-based approach to find the used area,
+			let rect_size = rectpack2d::finders_interface::find_best_packing(
+				&mut rects_to_place,
+				16384,
+				rectpack2d::finders_interface::DiscardStep::Tries(4),
+				true,
+				rectpack2d::finders_interface::DEFAULT_COMPARATORS,
+			);
 			println!("{:?}: {:#?} {:#?}", i, rect_placements, target_bins[&()]);
 		}
 	}
