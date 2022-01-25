@@ -3,6 +3,8 @@ use std::cmp;
 use super::rect_structs;
 use super::best_bin_finder;
 
+use rect_structs::{Rect};
+
 type Comparator = dyn Fn(rect_structs::RectWH, rect_structs::RectWH) -> cmp::Ordering;
 
 pub enum DiscardStep {
@@ -33,3 +35,12 @@ pub fn find_best_packing<RectT: rect_structs::OutputRect>(
 	}
 	best_bin_finder::find_best_packing_impl(orders, input)
 }
+
+pub const DEFAULT_COMPARATORS: &[&Comparator] = &[
+	&|a, b| a.area().cmp(&b.area()),
+	&|a, b| a.perimeter().cmp(&b.perimeter()),
+	&|a, b| a.max_size().cmp(&b.max_size()),
+	&|a, b| a.w.cmp(&b.w),
+	&|a, b| a.h.cmp(&b.h),
+	&|a, b| a.path_mul().partial_cmp(&b.path_mul()).unwrap_or(std::cmp::Ordering::Equal)
+];

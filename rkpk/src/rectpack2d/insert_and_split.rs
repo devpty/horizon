@@ -9,12 +9,20 @@ pub enum CreatedSplits {
 
 impl CreatedSplits {
 	pub fn count(&self) -> i8 {
-		match Self {
+		match self {
 			Self::Failed  => -1,
 			Self::Zero    => 0,
 			Self::One(..) => 1,
 			Self::Two(..) => 2,
 		}
+	}
+	pub fn iter(&self) -> std::slice::Iter<'_, &rect_structs::RectXYWH> {
+		match self {
+			Self::Failed => vec![],
+			Self::Zero   => vec![],
+			Self::One(a) => vec![a],
+			Self::Two(a, b) => vec![a, b],
+		}.iter()
 	}
 	pub fn better_than(&self, other: CreatedSplits) -> bool {
 		// this seems to consider zero splits better than one or two,

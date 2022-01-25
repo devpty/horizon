@@ -5,6 +5,7 @@ pub struct EmptySpaces<RectT: rect_structs::OutputRect> {
 	current_aabb: rect_structs::RectWH,
 	spaces: Vec<rect_structs::RectXYWH>,
 	allow_flipping: bool,
+	_marker: std::marker::PhantomData<RectT>,
 }
 
 enum InsertResult {
@@ -19,6 +20,7 @@ impl<RectT: rect_structs::OutputRect> EmptySpaces<RectT> {
 			current_aabb: rect_structs::RectWH::default(),
 			spaces: Vec::new(),
 			allow_flipping,
+			_marker: std::marker::PhantomData,
 		}
 	}
 	pub fn reset(&mut self, r: rect_structs::RectWH) {
@@ -27,7 +29,7 @@ impl<RectT: rect_structs::OutputRect> EmptySpaces<RectT> {
 		self.spaces.push(rect_structs::RectXYWH::new(0, 0, r.w, r.h));
 	}
 	pub fn insert(&mut self, image_rectangle: &mut RectT) -> Option<RectT> {
-		for candidate_space in self.spaces.iter().rev() {
+		for (i, candidate_space) in self.spaces.iter().enumerate().rev() {
 			let res = if <RectT>::ALLOW_FLIP && self.allow_flipping {
 				let normal = insert_and_split::CreatedSplits::new(image_rectangle.get_wh(), candidate_space);
 				let flipped = insert_and_split::CreatedSplits::new(image_rectangle.get_wh().flip(), candidate_space);
@@ -53,26 +55,25 @@ impl<RectT: rect_structs::OutputRect> EmptySpaces<RectT> {
 				}
 			};
 			let (flipping_necessary, splits) = match res {
-				InsertResult::Failed => return None,
+				InsertResult::Failed => continue,
 				InsertResult::Normal(rect) => (false, rect),
 				InsertResult::Flipped(rect) => (true, rect),
 			};
-			self.spaces.remove(candidate_space);
+			self.spaces.remove(i);
 			for split in splits.iter() {
-				if !self.spaces.add(split) {
-					return None;
-				}
+				self.spaces.push(split);
 			}
 			// no allow_flip shit here since !allow_flipping will never call the flipping codepath
 			let result = RectT::from_xywhf(
 				candidate_space.x,
 				candidate_space.y,
-				image_rectangle.w,
-				image_rectangle.h,
+				image_rectangle.get_w(),
+				image_rectangle.get_h(),
 				flipping_necessary,
 			);
 			self.current_aabb.expand_with_mut(result);
-			result
+			return Some(result)
 		}
+		None
 	}
 }
