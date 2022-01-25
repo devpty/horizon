@@ -50,13 +50,13 @@ impl CreatedSplits {
 			Self::One(r)
 		} else if free_w > free_h {
 			Self::Two(
-				rect_structs::SpaceRect::from(sp.x + im.w, sp.y, free_w, sp.h),
-				rect_structs::SpaceRect::from(sp.x, sp.y + im.h, im.w, free_h),
+				rect_structs::RectXYWH::new(sp.x + im.w, sp.y, free_w, sp.h),
+				rect_structs::RectXYWH::new(sp.x, sp.y + im.h, im.w, free_h),
 			)
 		} else {
 			Self::Two(
-				rect_structs::SpaceRect::from(sp.x, sp.y + im.h, im.w, free_h),
-				rect_structs::SpaceRect::from(sp.x + im.w, sp.y, free_w, sp.h),
+				rect_structs::RectXYWH::new(sp.x, sp.y + im.h, im.w, free_h),
+				rect_structs::RectXYWH::new(sp.x + im.w, sp.y, free_w, sp.h),
 			)
 		}
 	}

@@ -23,10 +23,10 @@ impl<RectT: rect_structs::OutputRect> EmptySpaces<RectT> {
 	}
 	pub fn reset(&mut self, r: rect_structs::RectWH) {
 		self.current_aabb = rect_structs::RectWH::default();
-		spaces.clear();
-		spaces.push(rect_structs::RectXYWH::new(0, 0, r.w, r.h));
+		self.spaces.clear();
+		self.spaces.push(rect_structs::RectXYWH::new(0, 0, r.w, r.h));
 	}
-	pub fn insert(&mut self, image_rectangle: rect_structs::RectWH) -> Option<RectT> {
+	pub fn insert(&mut self, image_rectangle: &mut RectT) -> Option<RectT> {
 		for candidate_space in self.spaces.iter().rev() {
 			let res = if <RectT>::ALLOW_FLIP && self.allow_flipping {
 				let normal = insert_and_split::CreatedSplits::new(image_rectangle.get_wh(), candidate_space);

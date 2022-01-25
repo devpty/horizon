@@ -11,7 +11,7 @@ pub enum DiscardStep {
 }
 
 pub struct FinderInput {
-	start_size: u32,
+	pub(crate) start_size: u32,
 	discard_step: DiscardStep,
 	allow_flipping: bool,
 }

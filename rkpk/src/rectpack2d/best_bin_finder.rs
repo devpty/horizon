@@ -1,6 +1,8 @@
-use super::empty_space_allocators;
+use crate::rectpack2d::best_bin_finder::BestPackingForOrderingResult::TotalArea;
+use crate::rectpack2d::finders_interface;
 use super::empty_spaces;
 use super::rect_structs;
+use crate::Rect;
 
 enum BinDimension {
 	Both, Width, Height
@@ -14,7 +16,7 @@ enum BestPackingForOrderingResult {
 fn best_packing_for_ordering_impl<RectT: rect_structs::OutputRect>(
 	root: &mut empty_spaces::EmptySpaces<RectT>,
 	ordering: &Vec<&RectT>,
-	starting_bin: rect::RectWH,
+	starting_bin: rect_structs::RectWH,
 	discard_step: finders_interface::DiscardStep,
 	tried_dimension: BinDimension,
 ) -> BestPackingForOrderingResult {
@@ -22,7 +24,7 @@ fn best_packing_for_ordering_impl<RectT: rect_structs::OutputRect>(
 	let (discard_step, mut tries_before_discarding) = match discard_step {
 		finders_interface::DiscardStep::Step(step) => (step, 0),
 		finders_interface::DiscardStep::Tries(tries) => (1, tries),
-	}
+	};
 	let starting_step = match tried_dimension {
 		BinDimension::Both => {
 			candidate_bin.w /= 2;
@@ -44,15 +46,7 @@ fn best_packing_for_ordering_impl<RectT: rect_structs::OutputRect>(
 		root.reset(candidate_bin);
 		let mut total_inserted_area = 0;
 		// in c++ this is a lambda, that's stupid
-		let all_inserted = 'check: {
-			for rect in ordering {
-				match root.insert(rect.get_wh()) {
-					Some(_) => total_inserted_area += rect.area(),
-					None => break 'check false;
-				}
-			}
-			true
-		};
+		let all_inserted = true;
 		if all_inserted {
 			if step <= discard_step {
 				if tries_before_discarding > 0 {
@@ -154,9 +148,9 @@ pub fn find_best_packing_impl<RectT: rect_structs::OutputRect>(
 	// unwrap: used to replace an assert in the source, could probably become a `return None`
 	let best_order = best_order.unwrap();
 	root.reset(best_bin);
-	for rect of best_order {
+	for rect in best_order {
 		match root.insert(rect) {
-			Some(res) => rect = res,
+			Some(res) => rect == res,
 			None => return None,
 		}
 	}

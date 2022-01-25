@@ -1,4 +1,5 @@
 use std::{collections, fmt};
+use crate::Rect;
 
 #[derive(Clone)]
 pub struct ImageCacheEntry {
@@ -6,7 +7,7 @@ pub struct ImageCacheEntry {
 }
 
 impl ImageCacheEntry {
-	pub fn crop(&self, r: crate::Rect) -> image::RgbaImage {
+	pub fn crop(&self, r: &mut Rect) -> image::RgbaImage {
 		// TODO(1e1001): determine if flip means "rotate the rect" or "this rect is rotated"
 		// for now, we ignore rotation
 		let src = self.data.as_ref();

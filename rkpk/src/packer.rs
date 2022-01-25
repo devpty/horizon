@@ -114,7 +114,7 @@ impl Packer {
 							image, source_pos, packed_loc
 						} => {
 							// ignore packed_loc's position as it gets re-packed anyways
-							let rect = rectpack2d::rect_structs::RectXYWHF::from(0, 0, packed_loc.2, packed_loc.3, false);
+							let rect = rectpack2d::rect_structs::RectXYWHF::new(0, 0, packed_loc.2, packed_loc.3, false);
 							rects_to_place.push(rect);
 							rects_info.push((j, k))
 						},
