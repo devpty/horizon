@@ -6,8 +6,8 @@ use super::rectpack2d;
 pub enum PackerImage {
 	Unique {
 		image: crate::Image,
-		source_loc: (u32, u32),
-		packed_pos: crate::Rect,
+		packed_loc: (u32, u32),
+		source_pos: crate::Rect,
 	},
 	// index in vector
 	Duplicate(PackerKey, usize),
@@ -17,9 +17,9 @@ impl fmt::Debug for PackerImage {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		match self {
 			Self::Unique {
-				image, source_loc, packed_pos
+				image, packed_loc, source_pos
 			} => {
-				f.write_fmt(format_args!("({:?}, {:?}, {:?})", image, source_loc, packed_pos))
+				f.write_fmt(format_args!("({:?}, {:?}, {:?})", image, source_pos, packed_loc))
 			},
 			Self::Duplicate(key, idx) => {
 				f.write_fmt(format_args!("(ref {:?}:{})", key, idx))
@@ -59,7 +59,7 @@ impl Packer {
 	pub fn add_image(&mut self, id: &'static str, layer: Option<&'static str>, cache: &mut crate::ImageCache, image: crate::Image, ty: crate::ImageType) {
 		self.images.insert(
 			PackerKey {id, layer},
-			ty.to_rects(&image, cache).iter().map(|v| PackerImage::Unique {image, source_loc: (v.0, v.1), packed_pos: crate::Rect(0, 0, v.2, v.3, v.4)}).collect()
+			ty.to_rects(&image, cache).iter().map(|v| PackerImage::Unique {image, source_pos: (0, 0), packed_loc: v}).collect()
 		);
 	}
 	pub fn dedup(&mut self, cache: &mut crate::ImageCache) {
@@ -70,9 +70,9 @@ impl Packer {
 				print!("- image {:>3} ({:?}): ", j.0, j.1);
 				match j.1 {
 					PackerImage::Unique {
-						image, packed_pos, source_loc
+						image, packed_loc, source_pos
 					} => {
-						let bytes = image.to_entry(cache).crop(packed_pos.with_pos(*source_loc)).into_raw();
+						let bytes = image.to_entry(cache).crop(source_pos).into_raw();
 						if set.contains_key(&bytes) {
 							let dup = set.get(&bytes).unwrap();
 							println!("duplicate {:?}:{}", dup.0, dup.1);
@@ -111,11 +111,10 @@ impl Packer {
 					// todo: image size equality checks
 					match kv {
 						PackerImage::Unique {
-							image, source_loc, packed_pos
+							image, source_pos, packed_loc
 						} => {
-							let rect = rectpack2d::rect_structs::RectXYWHF::from(0, 0, packed_pos.2, packed_pos.3, false);
-							// rotation isn't yet supported :(
-							// rect.allow_global_z_axis_rotation = true;
+							// ignore packed_loc's position as it gets re-packed anyways
+							let rect = rectpack2d::rect_structs::RectXYWHF::from(0, 0, packed_loc.2, packed_loc.3, false);
 							rects_to_place.push(rect);
 							rects_info.push((j, k))
 						},
@@ -131,7 +130,7 @@ impl Packer {
 				true,
 				rectpack2d::finders_interface::DEFAULT_COMPARATORS,
 			);
-			println!("{:?}: {:#?} {:#?}", i, rect_placements, target_bins[&()]);
+			println!("{:?}: {:?} {:#?}", i, rect_size, rects_to_place);
 		}
 	}
 }
