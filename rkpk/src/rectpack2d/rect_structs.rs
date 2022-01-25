@@ -13,6 +13,8 @@ pub trait Rect: Default + Copy + Clone {
 }
 
 pub trait OutputRect: Rect {
+	const ALLOW_FLIP: bool;
+	fn from_xywhf(x: u32, y: u32, w: u32, h: u32, f: bool) -> Self;
 	fn get_x(&self) -> u32;
 	fn get_y(&self) -> u32;
 }
@@ -24,10 +26,7 @@ pub struct RectWH {
 }
 
 impl RectWH {
-	pub fn new() -> Self{
-		Self {w: 0, h: 0}
-	}
-	pub fn from(w: u32, h: u32) -> Self {
+	pub fn new(w: u32, h: u32) -> Self {
 		Self {w, h}
 	}
 	pub fn flip(&self) -> Self {
@@ -69,10 +68,7 @@ pub struct RectXYWH {
 }
 
 impl RectXYWH {
-	pub fn new() -> Self{
-		Self {x: 0, y: 0, w: 0, h: 0}
-	}
-	pub fn from(x: u32, y: u32, w: u32, h: u32) -> Self {
+	pub fn new(x: u32, y: u32, w: u32, h: u32) -> Self {
 		Self {x, y, w, h}
 	}
 }
@@ -85,6 +81,14 @@ impl Rect for RectXYWH {
 	fn get_wh(&self) -> RectWH {RectWH::from(self.w, self.h)}
 }
 impl OutputRect for RectXYWH {
+	const ALLOW_FLIP: bool = false;
+	fn from_xywhf(x: u32, y: u32, w: u32, h: u32, f: bool) -> Self {
+		// commenting that out because it should never happen (because ALLOW_FLIP is false)
+		// if f {
+		// 	panic!("can't flip a RectXYWH")
+		// }
+		Self { x, y, w, h }
+	}
 	fn get_x(&self) -> u32 { self.x }
 	fn get_y(&self) -> u32 { self.y }
 }
@@ -99,11 +103,12 @@ pub struct RectXYWHF {
 }
 
 impl RectXYWHF {
-	pub fn new() -> Self{
-		Self {x: 0, y: 0, w: 0, h: 0, flipped: false}
-	}
-	pub fn from(x: u32, y: u32, w: u32, h: u32, flipped: bool) -> Self {
-		Self {x, y, w, h, flipped}
+	pub fn new(x: u32, y: u32, w: u32, h: u32, flipped: bool) -> Self {
+		if flipped {
+			Self {x, y, h, w, flipped: true}
+		} else {
+			Self {x, y, w, h, flipped: false}
+		}
 	}
 	pub fn from_xywh(r: RectXYWH) -> Self {
 		Self {x: r.x, y: r.y, w: r.w, h: r.h, flipped: false}
@@ -119,8 +124,10 @@ impl Rect for RectXYWHF {
 }
 
 impl OutputRect for RectXYWHF {
+	const ALLOW_FLIP: bool = true;
+	fn from_xywhf(x: u32, y: u32, w: u32, h: u32, f: bool) -> Self {
+		Self::new(x, y, w, h, f);
+	}
 	fn get_x(&self) -> u32 { self.x }
 	fn get_y(&self) -> u32 { self.y }
 }
-
-pub type SpaceRect = RectXYWH;
