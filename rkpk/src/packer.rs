@@ -59,7 +59,7 @@ impl Packer {
 	pub fn add_image(&mut self, id: &'static str, layer: Option<&'static str>, cache: &mut crate::ImageCache, image: crate::Image, ty: crate::ImageType) {
 		self.images.insert(
 			PackerKey {id, layer},
-			ty.to_rects(&image, cache).iter().map(|v| PackerImage::Unique {image, source_pos: (0, 0), packed_loc: v}).collect()
+			ty.to_rects(&image, cache).iter().map(|v| PackerImage::Unique {image, source_pos: v, packed_loc: (0, 0)}).collect()
 		);
 	}
 	pub fn dedup(&mut self, cache: &mut crate::ImageCache) {

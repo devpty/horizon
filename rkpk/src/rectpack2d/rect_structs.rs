@@ -78,7 +78,7 @@ impl Rect for RectXYWH {
 	fn get_h(&self) -> u32 { self.h }
 	fn area(&self) -> u32 { self.w * self.h }
 	fn perimeter(&self) -> u32 { 2 * (self.w + self.h) }
-	fn get_wh(&self) -> RectWH {RectWH::from(self.w, self.h)}
+	fn get_wh(&self) -> RectWH {RectWH::new(self.w, self.h)}
 }
 impl OutputRect for RectXYWH {
 	const ALLOW_FLIP: bool = false;
@@ -120,13 +120,13 @@ impl Rect for RectXYWHF {
 	fn get_h(&self) -> u32 { self.h }
 	fn area(&self) -> u32 { self.w * self.h }
 	fn perimeter(&self) -> u32 { 2 * (self.w + self.h) }
-	fn get_wh(&self) -> RectWH {RectWH::from(self.w, self.h)}
+	fn get_wh(&self) -> RectWH {RectWH::new(self.w, self.h)}
 }
 
 impl OutputRect for RectXYWHF {
 	const ALLOW_FLIP: bool = true;
 	fn from_xywhf(x: u32, y: u32, w: u32, h: u32, f: bool) -> Self {
-		Self::new(x, y, w, h, f);
+		Self::new(x, y, w, h, f)
 	}
 	fn get_x(&self) -> u32 { self.x }
 	fn get_y(&self) -> u32 { self.y }
