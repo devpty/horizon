@@ -3,7 +3,7 @@
 // deps: none
 // stat: done
 
-pub trait Rect: Default + Copy + Clone {
+pub trait Rect: Default + Copy {
 	fn get_w(&self) -> u32;
 	fn get_h(&self) -> u32;
 	fn area(&self) -> u32;
@@ -31,10 +31,6 @@ impl RectWH {
 	}
 	pub fn flip(&self) -> Self {
 		Self { w: self.h, h: self.w }
-	}
-	pub fn flip_mut(&mut self) -> &mut Self {
-		std::mem::swap(&mut self.w, &mut self.h);
-		self
 	}
 	pub fn max_size(&self) -> u32 {
 		if self.h > self.w {self.h} else {self.w}
@@ -82,7 +78,7 @@ impl Rect for RectXYWH {
 }
 impl OutputRect for RectXYWH {
 	const ALLOW_FLIP: bool = false;
-	fn from_xywhf(x: u32, y: u32, w: u32, h: u32, f: bool) -> Self {
+	fn from_xywhf(x: u32, y: u32, w: u32, h: u32, _f: bool) -> Self {
 		// commenting that out because it should never happen (because ALLOW_FLIP is false)
 		// if f {
 		// 	panic!("can't flip a RectXYWH")
@@ -109,9 +105,6 @@ impl RectXYWHF {
 		} else {
 			Self {x, y, w, h, flipped: false}
 		}
-	}
-	pub fn from_xywh(r: RectXYWH) -> Self {
-		Self {x: r.x, y: r.y, w: r.w, h: r.h, flipped: false}
 	}
 }
 

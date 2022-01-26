@@ -1,13 +1,16 @@
-use crate::rectpack2d::best_bin_finder::BestPackingForOrderingResult::TotalArea;
-use crate::rectpack2d::finders_interface;
+use std::cell;
+
+use super::finders_interface;
 use super::empty_spaces;
 use super::rect_structs;
-use crate::Rect;
+use rect_structs::Rect;
 
+#[derive(Debug, Copy, Clone)]
 enum BinDimension {
 	Both, Width, Height
 }
 
+#[derive(Debug, Copy, Clone)]
 enum BestPackingForOrderingResult {
 	TotalArea(u32),
 	Rect(rect_structs::RectWH),
@@ -15,7 +18,7 @@ enum BestPackingForOrderingResult {
 
 fn best_packing_for_ordering_impl<RectT: rect_structs::OutputRect>(
 	root: &mut empty_spaces::EmptySpaces<RectT>,
-	ordering: &Vec<&RectT>,
+	ordering: &Vec<&cell::RefCell<&mut RectT>>,
 	starting_bin: rect_structs::RectWH,
 	discard_step: finders_interface::DiscardStep,
 	tried_dimension: BinDimension,
@@ -46,13 +49,21 @@ fn best_packing_for_ordering_impl<RectT: rect_structs::OutputRect>(
 		root.reset(candidate_bin);
 		let mut total_inserted_area = 0;
 		// in c++ this is a lambda, that's stupid
-		let all_inserted = true;
+		let all_inserted = 'ch: {
+			for rect in ordering {
+				match root.insert(**rect.borrow()) {
+					Some(_) => total_inserted_area += rect.borrow().area(),
+					None => break 'ch false,
+				}
+			}
+			true
+		};
 		if all_inserted {
 			if step <= discard_step {
 				if tries_before_discarding > 0 {
 					tries_before_discarding -= 1;
 				} else {
-					return candidate_bin;
+					return BestPackingForOrderingResult::Rect(candidate_bin);
 				}
 			}
 			match tried_dimension {
@@ -79,7 +90,7 @@ fn best_packing_for_ordering_impl<RectT: rect_structs::OutputRect>(
 					candidate_bin.h > starting_bin.h
 				}
 			} {
-				return total_inserted_area;
+				return BestPackingForOrderingResult::TotalArea(total_inserted_area);
 			}
 		}
 		step = 1.max(step / 2);
@@ -88,7 +99,7 @@ fn best_packing_for_ordering_impl<RectT: rect_structs::OutputRect>(
 
 fn best_packing_for_ordering<RectT: rect_structs::OutputRect>(
 	root: &mut empty_spaces::EmptySpaces<RectT>,
-	ordering: &Vec<&RectT>,
+	ordering: &Vec<&cell::RefCell<&mut RectT>>,
 	starting_bin: rect_structs::RectWH,
 	discard_step: finders_interface::DiscardStep
 ) -> BestPackingForOrderingResult {
@@ -113,33 +124,33 @@ fn best_packing_for_ordering<RectT: rect_structs::OutputRect>(
 	}
 	trial!(BinDimension::Width);
 	trial!(BinDimension::Height);
-	return best_bin;
+	return BestPackingForOrderingResult::Rect(best_bin);
 }
 
 
 pub fn find_best_packing_impl<RectT: rect_structs::OutputRect>(
-	orders: Vec<Vec<&mut RectT>>,
+	orders: Vec<Vec<&cell::RefCell<&mut RectT>>>,
 	input: finders_interface::FinderInput,
 ) -> Option<rect_structs::RectWH> {
-	let max_bin = rect_structs::RectWH::from(input.start_size, input.start_size);
+	let max_bin = rect_structs::RectWH::new(input.start_size, input.start_size);
 	// Option<&Vec<&mut RectT>>
 	let mut best_order = None;
 	let mut best_total_inserted = 0;
 	let mut best_bin = max_bin;
 	let mut root = empty_spaces::EmptySpaces::new(input.allow_flipping);
 	for current_order in orders {
-		match best_packing_for_ordering(&mut root, current_order, max_bin, input.discard_step) {
-			TotalArea(total_inserted) => {
+		match best_packing_for_ordering(&mut root, &current_order, max_bin, input.discard_step) {
+			BestPackingForOrderingResult::TotalArea(total_inserted) => {
 				if best_order.is_none() && total_inserted > best_total_inserted {
 					best_order = Some(current_order);
 					best_total_inserted = total_inserted;
 				}
 			},
-			Rect(result_bin) => {
+			BestPackingForOrderingResult::Rect(result_bin) => {
 				// this will be like 0.0001% faster if i change the <= with a <
 				// that messes up the case where the smallest area is equal to the bin area
 				if result_bin.area() <= best_bin.area() {
-					best_order = current_order;
+					best_order = Some(current_order);
 					best_bin = result_bin;
 				}
 			}
@@ -149,12 +160,16 @@ pub fn find_best_packing_impl<RectT: rect_structs::OutputRect>(
 	let best_order = best_order.unwrap();
 	root.reset(best_bin);
 	for rect in best_order {
-		match root.insert(rect) {
-			Some(res) => rect == res,
+		let rect_copy = {**rect.borrow()};
+		match root.insert(rect_copy) {
+			Some(res) => {
+				let mut borrow = rect.borrow_mut();
+				**borrow = res;
+			},
 			None => return None,
 		}
 	}
 	// original implementation always returned, even on packing failure
 	// that's a bad idea since our implementation doesn't have packing callbacks
-	Some(root.get_rects_aabb())
+	Some(root.current_aabb)
 }

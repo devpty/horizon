@@ -1,5 +1,6 @@
 use super::rect_structs;
 
+#[derive(Debug, Copy, Clone)]
 pub enum CreatedSplits {
 	Failed,
 	Zero,
@@ -16,13 +17,13 @@ impl CreatedSplits {
 			Self::Two(..) => 2,
 		}
 	}
-	pub fn iter(&self) -> std::slice::Iter<'_, &rect_structs::RectXYWH> {
+	pub fn vec(&self) -> Vec<rect_structs::RectXYWH> {
 		match self {
 			Self::Failed => vec![],
 			Self::Zero   => vec![],
-			Self::One(a) => vec![a],
-			Self::Two(a, b) => vec![a, b],
-		}.iter()
+			Self::One(a) => vec![*a],
+			Self::Two(a, b) => vec![*a, *b],
+		}
 	}
 	pub fn better_than(&self, other: CreatedSplits) -> bool {
 		// this seems to consider zero splits better than one or two,
@@ -30,32 +31,27 @@ impl CreatedSplits {
 		self.count() < other.count()
 	}
 	pub fn valid(&self) -> bool {
-		if let Failed = self {
-			false
-		} else {
-			true
+		match self {
+			Self::Failed => false,
+			_ => true,
 		}
 	}
 	pub fn new(
 		im: rect_structs::RectWH,
 		sp: rect_structs::RectXYWH,
 	) -> Self {
+		// unsigned integer moment
+		if im.w > sp.w || im.h > sp.h {
+			return Self::Failed;
+		}
 		let free_w = sp.w - im.w;
 		let free_h = sp.h - im.h;
-		if free_w < 0 || free_h < 0 {
-			Self::Failed
-		} else if free_w == 0 && free_h == 0 {
+		if free_w == 0 && free_h == 0 {
 			Self::Zero
 		} else if free_w > 0 && free_h == 0 {
-			let mut r = sp;
-			r.x += im.w;
-			r.w -= im.w;
-			Self::One(r)
+			Self::One(rect_structs::RectXYWH::new(sp.x + im.w, sp.y, sp.w - im.w, sp.h))
 		} else if free_w == 0 && free_h > 0 {
-			let mut r = sp;
-			r.y += im.h;
-			r.h -= im.h;
-			Self::One(r)
+			Self::One(rect_structs::RectXYWH::new(sp.x, sp.y + im.h, sp.w, sp.h - im.h))
 		} else if free_w > free_h {
 			Self::Two(
 				rect_structs::RectXYWH::new(sp.x + im.w, sp.y, free_w, sp.h),

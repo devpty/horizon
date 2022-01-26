@@ -1,3 +1,5 @@
+#![feature(label_break_value)]
+
 mod packer;
 mod types;
 mod cache;

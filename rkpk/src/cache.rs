@@ -7,7 +7,7 @@ pub struct ImageCacheEntry {
 }
 
 impl ImageCacheEntry {
-	pub fn crop(&self, r: &mut Rect) -> image::RgbaImage {
+	pub fn crop(&self, r: Rect) -> image::RgbaImage {
 		// TODO(1e1001): determine if flip means "rotate the rect" or "this rect is rotated"
 		// for now, we ignore rotation
 		let src = self.data.as_ref();

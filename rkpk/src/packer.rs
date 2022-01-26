@@ -44,13 +44,15 @@ impl fmt::Debug for PackerKey {
 pub struct Packer {
 	pub allow_flipping: bool,
 	images: collections::HashMap<PackerKey, Vec<PackerImage>>,
+	packed_size: (u32, u32),
 }
 
 impl Packer {
 	pub fn new() -> Self {
 		Self {
 			allow_flipping: false,
-			images: collections::HashMap::new()
+			images: collections::HashMap::new(),
+			packed_size: (0, 0),
 		}
 	}
 	pub fn allow_flipping(&mut self, v: bool) {
@@ -59,7 +61,7 @@ impl Packer {
 	pub fn add_image(&mut self, id: &'static str, layer: Option<&'static str>, cache: &mut crate::ImageCache, image: crate::Image, ty: crate::ImageType) {
 		self.images.insert(
 			PackerKey {id, layer},
-			ty.to_rects(&image, cache).iter().map(|v| PackerImage::Unique {image, source_pos: v, packed_loc: (0, 0)}).collect()
+			ty.to_rects(&image, cache).iter().map(|v| PackerImage::Unique {image, source_pos: *v, packed_loc: (0, 0)}).collect()
 		);
 	}
 	pub fn dedup(&mut self, cache: &mut crate::ImageCache) {
@@ -70,9 +72,9 @@ impl Packer {
 				print!("- image {:>3} ({:?}): ", j.0, j.1);
 				match j.1 {
 					PackerImage::Unique {
-						image, packed_loc, source_pos
+						image, source_pos, ..
 					} => {
-						let bytes = image.to_entry(cache).crop(source_pos).into_raw();
+						let bytes = image.to_entry(cache).crop(*source_pos).into_raw();
 						if set.contains_key(&bytes) {
 							let dup = set.get(&bytes).unwrap();
 							println!("duplicate {:?}:{}", dup.0, dup.1);
@@ -90,9 +92,9 @@ impl Packer {
 			}
 		}
 	}
-	pub fn pack(&mut self, cache: &mut crate::ImageCache) {
-		let mut rects_by_layer = collections::HashMap::<Option<&str>, collections::HashMap<&str, &Vec<PackerImage>>>::new();
-		for (i, iv) in &self.images {
+	pub fn pack(&mut self) {
+		let mut rects_by_layer = collections::HashMap::<Option<&str>, collections::HashMap<&str, &mut Vec<PackerImage>>>::new();
+		for (i, iv) in self.images.iter_mut() {
 			// id's can be duplicated between layers
 			let entry = rects_by_layer.entry(i.layer).or_default();
 			// todo: all rects of the same id & index should have the same resolution
@@ -103,20 +105,20 @@ impl Packer {
 			}
 		}
 		// iterate through atlases and generate
-		for (i, iv) in rects_by_layer {
+		for (_, mut iv) in rects_by_layer {
 			let mut rects_to_place = Vec::new();
 			let mut rects_info = Vec::new();
-			for (j, jv) in iv {
+			for (j, jv) in iv.iter() {
 				for (k, kv) in jv.iter().enumerate() {
 					// todo: image size equality checks
 					match kv {
 						PackerImage::Unique {
-							image, source_pos, packed_loc
+							source_pos, ..
 						} => {
 							// ignore packed_loc's position as it gets re-packed anyways
-							let rect = rectpack2d::rect_structs::RectXYWHF::new(0, 0, packed_loc.2, packed_loc.3, false);
+							let rect = rectpack2d::rect_structs::RectXYWHF::new(0, 0, source_pos.2, source_pos.3, false);
 							rects_to_place.push(rect);
-							rects_info.push((j, k))
+							rects_info.push((*j, k))
 						},
 						// don't handle duplicates as their originals are already handled
 						PackerImage::Duplicate(..) => {},
@@ -125,12 +127,21 @@ impl Packer {
 			}
 			let rect_size = rectpack2d::finders_interface::find_best_packing(
 				&mut rects_to_place,
-				16384,
-				rectpack2d::finders_interface::DiscardStep::Tries(4),
-				true,
+				rectpack2d::finders_interface::FinderInput {
+					start_size: 16384,
+					discard_step: rectpack2d::finders_interface::DiscardStep::Tries(4),
+					allow_flipping: true,
+				},
 				rectpack2d::finders_interface::DEFAULT_COMPARATORS,
-			);
-			println!("{:?}: {:?} {:#?}", i, rect_size, rects_to_place);
+			).unwrap(); // unwrap: can error
+			self.packed_size = (rect_size.w, rect_size.h);
+			for (rect, (j, k)) in rects_to_place.iter().zip(rects_info.iter()) {
+				// unwrap: will never fail (×2)
+				match iv.get_mut(*j).unwrap().get_mut(*k).unwrap() {
+					PackerImage::Unique { packed_loc, .. } => *packed_loc = (rect.x, rect.y),
+					_ => {}
+				}
+			}
 		}
 	}
 }
