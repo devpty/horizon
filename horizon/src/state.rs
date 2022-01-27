@@ -551,6 +551,7 @@ impl State {
 		delta_time: f64,
 		window: &winit::window::Window,
 	) -> Result<(), wgpu::SurfaceError> {
+		self.update();
 		self.egui_platform.update_time(run_time);
 		self.hard_resize(false);
 		let output = self.surface.get_current_texture()?;

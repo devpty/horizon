@@ -32,7 +32,6 @@ pub async fn start(info: StartInfo) {
 	event_loop.run(move |event, _, control_flow| {
 		if !state.handle_event(&event) { match event {
 			event::Event::RedrawRequested(window_id) if window_id == window.id() => {
-				state.update();
 				let elapsed = start_time.elapsed().as_secs_f64();
 				let delta_time = elapsed - prev_time;
 				prev_time = elapsed;

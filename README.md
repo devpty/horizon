@@ -1,6 +1,19 @@
-# horizon game engine
-engine for devpty games, made in 99.9% rust and 0.1% shell.
-this is our main project currently. the engine will be used for most if not all of our upcoming (usually 2d) games
-- will include development tools so you can create levels without manually inputting data lol
-- will be less meme-y once we reach somewhere close to functionality
-- repo is public now because we honestly do not care about other people seeing our progress
+# horizon
+A 2d game framework / engine.
+
+Planned features:
+- Will include in-game editing and debugging tools
+- Will hopefully be less meme-y once we reach somewhere close to functionality
+
+## Structure
+Horizon is made of several parts:
+- horizon_engine: the main game engine
+- horizon_horse: a custom format for data serialization
+- rkpk: an atlas generation and compositing library
+
+We have a `start` (`start.bat` on windows) script to help with starting a binary project from the root folder, simply run `./start horizon` (substituting `horizon` for the crate you want to run).
+
+## Other things
+
+- [Code style information](./style_guide.md)
+- Repo is public now because we honestly do not care about other people seeing our progress
