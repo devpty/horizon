@@ -8,7 +8,7 @@ pub struct ImageCacheEntry {
 
 impl ImageCacheEntry {
 	pub fn crop(&self, r: Rect) -> image::RgbaImage {
-		// TODO(1e1001): determine if flip means "rotate the rect" or "this rect is rotated"
+		// we've determined that flip means "this rect is rotated"
 		// for now, we ignore rotation
 		let src = self.data.as_ref();
 		let mut dst = vec![0u8; r.2 as usize * r.3 as usize * 4];
@@ -20,6 +20,7 @@ impl ImageCacheEntry {
 			// println!("crop line_y={}, dst_start={}, src_start={}", line_y, dst_start, src_start);
 			dst[dst_start..dst_start + dst_step].clone_from_slice(&src[src_start..src_start + dst_step]);
 		}
+		// unwrap: can't fail since the buffer is the same size
 		image::RgbaImage::from_vec(r.2, r.3, dst).unwrap()
 	}
 }
@@ -40,10 +41,11 @@ impl ImageCache {
 	fn get_fill(&mut self, path: &'static str, image: &Image) -> &ImageCacheEntry {
 		if !self.0.contains_key(path) {
 			println!("loading {:?}", image);
-			self.0.insert(path, ImageCacheEntry {
+			self.0.insert(path, ImageCacheEntry { // < here
 				data: image.to_data()
 			});
 		}
+		// unwrap: can't fail since it was inserted ^
 		self.0.get(path).unwrap()
 	}
 }
@@ -68,13 +70,13 @@ impl Image {
 		match self {
 			Self::External(path) =>
 				image::io::Reader::open(path)
-					.unwrap()
+					.unwrap() // unwrap-fail: can fail if file not found
 					.decode()
-					.unwrap()
+					.unwrap() // unwrap-fail: can fail if image isn't valid
 					.to_rgba8(),
 			Self::Bytes(data) =>
 				image::load_from_memory(data)
-					.unwrap()
+					.unwrap() // unwrap-fail: can fail if image isn't valid
 					.to_rgba8()
 		}
 	}
@@ -105,7 +107,7 @@ impl ImageType {
 				let (tile_size_x, tile_size_y) = *tile_size;
 				let (gap_size_x, gap_size_y) = *gap_size;
 				let (tile_count_x, tile_count_y) = *tile_count;
-				let mut out = vec![crate::Rect(0, 0, 0, 0, false); (tile_count_x * tile_count_y).try_into().unwrap()];
+				let mut out = vec![crate::Rect(0, 0, 0, 0, false); tile_count_x as usize * tile_count_y as usize];
 				for x in 0..tile_count_x {
 					for y in 0..tile_count_y {
 						out[(x + y * tile_count_x) as usize] = crate::Rect(

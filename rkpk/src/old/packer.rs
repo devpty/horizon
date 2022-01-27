@@ -76,6 +76,7 @@ impl Packer {
 					} => {
 						let bytes = image.to_entry(cache).crop(*source_pos).into_raw();
 						if set.contains_key(&bytes) {
+							// unwrap: guaranteed to not fail
 							let dup = set.get(&bytes).unwrap();
 							println!("duplicate {:?}:{}", dup.0, dup.1);
 							// mark it as a duplicate
@@ -133,7 +134,7 @@ impl Packer {
 					allow_flipping: true,
 				},
 				rectpack2d::finders_interface::DEFAULT_COMPARATORS,
-			).unwrap(); // unwrap: can error
+			).unwrap(); // unwrap-fail: can fail if packing fails
 			self.packed_size = (rect_size.w, rect_size.h);
 			for (rect, (j, k)) in rects_to_place.iter().zip(rects_info.iter()) {
 				// unwrap: will never fail (×2)

@@ -156,8 +156,10 @@ pub fn find_best_packing_impl<RectT: rect_structs::OutputRect>(
 			}
 		}
 	}
-	// unwrap: used to replace an assert in the source, could probably become a `return None`
-	let best_order = best_order.unwrap();
+	let best_order = match best_order {
+		Some(v) => v,
+		None => return None
+	};
 	root.reset(best_bin);
 	for rect in best_order {
 		let rect_copy = {**rect.borrow()};
