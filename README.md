@@ -2,7 +2,7 @@
 A 2d game framework / engine.
 
 Planned features:
-- Will include in-game editing and debugging tools
+- Will include in-engine editing and debugging tools
 - Will hopefully be less meme-y once we reach somewhere close to functionality
 
 ## Structure
