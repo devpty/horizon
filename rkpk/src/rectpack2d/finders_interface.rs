@@ -1,10 +1,10 @@
-use std::{cell, cmp};
+use std::{cmp};
 
-use super::rect_structs;
-use super::best_bin_finder;
-use rect_structs::Rect;
+use super::best_bin_finder::{BestPackingForOrderingResult, best_packing_for_ordering};
+use super::empty_spaces::{EmptySpaces};
+use super::rect_structs::{RectWH, RectXYWH};
 
-type Comparator = dyn Fn(rect_structs::RectWH, rect_structs::RectWH) -> cmp::Ordering;
+type Comparator = dyn Fn(RectWH, RectWH) -> cmp::Ordering;
 
 #[derive(Debug, Copy, Clone)]
 pub enum DiscardStep {
@@ -19,21 +19,49 @@ pub struct FinderInput {
 	pub allow_flipping: bool,
 }
 
-pub fn find_best_packing<RectT: rect_structs::OutputRect>(
-	subjects: &mut Vec<RectT>,
+pub fn find_best_packing(
+	subjects: &mut Vec<RectXYWH>,
 	input: FinderInput,
 	comparators: &[&Comparator],
-) -> Option<rect_structs::RectWH> {
-	// rect_type = RectT
-	// order_type = Vec<RectT>
-	let mut orders = Vec::with_capacity(comparators.len());
-	let rc_vec = subjects.iter_mut().map(|n| cell::RefCell::new(n)).collect::<Vec<_>>();
+) -> Option<RectWH> {
+	let mut_vec = subjects.iter_mut().collect::<Vec<_>>();
+	let max_bin = RectWH::new(input.start_size, input.start_size);
+	let mut best_order = None;
+	let mut best_total_inserted = 0;
+	let mut best_bin = max_bin;
+	let mut root = EmptySpaces::new(input.allow_flipping);
 	for comparator in comparators {
-		let mut copy: Vec<_> = rc_vec.iter().collect();
-		copy.sort_by(|a, b| comparator(a.borrow().get_wh(), b.borrow().get_wh()));
-		orders.push(copy);
+		mut_vec.sort_by(|a, b| comparator(a.to_wh(), b.to_wh()));
+		match best_packing_for_ordering(&mut root, &mut_vec, max_bin, input.discard_step) {
+			BestPackingForOrderingResult::TotalArea(total_inserted) => {
+				if best_order.is_none() && total_inserted > best_total_inserted {
+					best_order = Some(comparator);
+					best_total_inserted = total_inserted;
+				}
+			},
+			BestPackingForOrderingResult::Rect(result_bin) => {
+				// this will be like 0.0001% faster if i change the <= with a <
+				// that messes up the case where the smallest area is equal to the bin area
+				if result_bin.area() <= best_bin.area() {
+					best_order = Some(comparator);
+					best_bin = result_bin;
+				}
+			}
+		}
 	}
-	best_bin_finder::find_best_packing_impl(orders, input)
+	let best_order = match best_order {
+		Some(v) => v,
+		None => return None
+	};
+	root.reset(best_bin);
+	mut_vec.sort_by(|a, b| best_order(a.to_wh(), b.to_wh()));
+	for rect in mut_vec {
+		match root.insert(*rect) {
+			Some(res) => *rect = res,
+			None => return None,
+		}
+	}
+	Some(root.current_aabb)
 }
 
 pub const DEFAULT_COMPARATORS: &[&Comparator] = &[

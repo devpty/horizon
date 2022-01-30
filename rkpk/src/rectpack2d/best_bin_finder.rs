@@ -1,25 +1,22 @@
-use std::cell;
-
 use super::finders_interface;
 use super::empty_spaces;
-use super::rect_structs;
-use rect_structs::Rect;
+use super::rect_structs::{RectWH, RectXYWH};
 
 #[derive(Debug, Copy, Clone)]
-enum BinDimension {
+pub enum BinDimension {
 	Both, Width, Height
 }
 
 #[derive(Debug, Copy, Clone)]
-enum BestPackingForOrderingResult {
+pub enum BestPackingForOrderingResult {
 	TotalArea(u32),
-	Rect(rect_structs::RectWH),
+	Rect(RectWH),
 }
 
-fn best_packing_for_ordering_impl<RectT: rect_structs::OutputRect>(
-	root: &mut empty_spaces::EmptySpaces<RectT>,
-	ordering: &Vec<&cell::RefCell<&mut RectT>>,
-	starting_bin: rect_structs::RectWH,
+fn best_packing_for_ordering_impl(
+	root: &mut empty_spaces::EmptySpaces,
+	ordering: &Vec<&mut RectXYWH>,
+	starting_bin: RectWH,
 	discard_step: finders_interface::DiscardStep,
 	tried_dimension: BinDimension,
 ) -> BestPackingForOrderingResult {
@@ -51,8 +48,8 @@ fn best_packing_for_ordering_impl<RectT: rect_structs::OutputRect>(
 		// in c++ this is a lambda, that's stupid
 		let all_inserted = 'ch: {
 			for rect in ordering {
-				match root.insert(**rect.borrow()) {
-					Some(_) => total_inserted_area += rect.borrow().area(),
+				match root.insert(**rect) {
+					Some(_) => total_inserted_area += rect.area(),
 					None => break 'ch false,
 				}
 			}
@@ -97,10 +94,10 @@ fn best_packing_for_ordering_impl<RectT: rect_structs::OutputRect>(
 	}
 }
 
-fn best_packing_for_ordering<RectT: rect_structs::OutputRect>(
-	root: &mut empty_spaces::EmptySpaces<RectT>,
-	ordering: &Vec<&cell::RefCell<&mut RectT>>,
-	starting_bin: rect_structs::RectWH,
+pub fn best_packing_for_ordering(
+	root: &mut empty_spaces::EmptySpaces,
+	ordering: &Vec<&mut RectXYWH>,
+	starting_bin: RectWH,
 	discard_step: finders_interface::DiscardStep
 ) -> BestPackingForOrderingResult {
 	macro_rules! try_pack {
@@ -125,53 +122,4 @@ fn best_packing_for_ordering<RectT: rect_structs::OutputRect>(
 	trial!(BinDimension::Width);
 	trial!(BinDimension::Height);
 	return BestPackingForOrderingResult::Rect(best_bin);
-}
-
-
-pub fn find_best_packing_impl<RectT: rect_structs::OutputRect>(
-	orders: Vec<Vec<&cell::RefCell<&mut RectT>>>,
-	input: finders_interface::FinderInput,
-) -> Option<rect_structs::RectWH> {
-	let max_bin = rect_structs::RectWH::new(input.start_size, input.start_size);
-	// Option<&Vec<&mut RectT>>
-	let mut best_order = None;
-	let mut best_total_inserted = 0;
-	let mut best_bin = max_bin;
-	let mut root = empty_spaces::EmptySpaces::new(input.allow_flipping);
-	for current_order in orders {
-		match best_packing_for_ordering(&mut root, &current_order, max_bin, input.discard_step) {
-			BestPackingForOrderingResult::TotalArea(total_inserted) => {
-				if best_order.is_none() && total_inserted > best_total_inserted {
-					best_order = Some(current_order);
-					best_total_inserted = total_inserted;
-				}
-			},
-			BestPackingForOrderingResult::Rect(result_bin) => {
-				// this will be like 0.0001% faster if i change the <= with a <
-				// that messes up the case where the smallest area is equal to the bin area
-				if result_bin.area() <= best_bin.area() {
-					best_order = Some(current_order);
-					best_bin = result_bin;
-				}
-			}
-		}
-	}
-	let best_order = match best_order {
-		Some(v) => v,
-		None => return None
-	};
-	root.reset(best_bin);
-	for rect in best_order {
-		let rect_copy = {**rect.borrow()};
-		match root.insert(rect_copy) {
-			Some(res) => {
-				let mut borrow = rect.borrow_mut();
-				**borrow = res;
-			},
-			None => return None,
-		}
-	}
-	// original implementation always returned, even on packing failure
-	// that's a bad idea since our implementation doesn't have packing callbacks
-	Some(root.current_aabb)
 }
