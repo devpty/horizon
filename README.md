@@ -17,3 +17,5 @@ We have a `start` (`start.bat` on windows) script to help with starting a binary
 
 - [Code style information](./style_guide.md)
 - Repo is public now because we honestly do not care about other people seeing our progress
+- **You need to be using a nightly version of rust for now** because we use the following unstable features:
+  - label_break_value
