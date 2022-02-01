@@ -1,6 +1,7 @@
+use crate::ImageCache;
+
 pub struct Packer<'a> {
 	cache: &'a mut ImageCache,
-
 }
 
 impl<'a> Packer<'a> {

@@ -6,5 +6,5 @@ mod error;
 mod packer;
 
 pub use cache::{ImageCache, Image};
-pub use error::{Error, etil};
+pub use error::{Error, Result, etil};
 pub use packer::Packer;

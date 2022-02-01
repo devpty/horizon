@@ -1,11 +1,10 @@
 use std::fmt;
 
-
-
 #[derive(Debug)]
 pub enum Error {
 	Io(std::io::Error),
 	Image(image::ImageError),
+	Shit
 }
 
 impl fmt::Display for Error {
@@ -14,6 +13,8 @@ impl fmt::Display for Error {
 	}
 }
 impl std::error::Error for Error {}
+
+pub type Result<T> = std::result::Result<T, Error>;
 
 /// error utilities
 pub mod etil {
