@@ -134,10 +134,10 @@ impl Packer {
 					allow_flipping: true,
 				},
 				rectpack2d::finders_interface::DEFAULT_COMPARATORS,
-			).unwrap(); // unwrap-fail: can fail if packing fails
+			).unwrap(); // panic-fail: can fail if packing fails
 			self.packed_size = (rect_size.w, rect_size.h);
 			for (rect, (j, k)) in rects_to_place.iter().zip(rects_info.iter()) {
-				// unwrap: will never fail (×2)
+				// panic: will never fail (×2)
 				match iv.get_mut(*j).unwrap().get_mut(*k).unwrap() {
 					PackerImage::Unique { packed_loc, .. } => *packed_loc = (rect.x, rect.y),
 					_ => {}

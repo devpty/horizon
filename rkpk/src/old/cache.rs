@@ -20,7 +20,7 @@ impl ImageCacheEntry {
 			// println!("crop line_y={}, dst_start={}, src_start={}", line_y, dst_start, src_start);
 			dst[dst_start..dst_start + dst_step].clone_from_slice(&src[src_start..src_start + dst_step]);
 		}
-		// unwrap: can't fail since the buffer is the same size
+		// panic: can't fail since the buffer is the same size
 		image::RgbaImage::from_vec(r.2, r.3, dst).unwrap()
 	}
 }
@@ -45,7 +45,7 @@ impl ImageCache {
 				data: image.to_data()
 			});
 		}
-		// unwrap: can't fail since it was inserted ^
+		// panic: can't fail since it was inserted ^
 		self.0.get(path).unwrap()
 	}
 }
@@ -70,13 +70,13 @@ impl Image {
 		match self {
 			Self::External(path) =>
 				image::io::Reader::open(path)
-					.unwrap() // unwrap-fail: can fail if file not found
+					.unwrap() // panic-fail: can fail if file not found
 					.decode()
-					.unwrap() // unwrap-fail: can fail if image isn't valid
+					.unwrap() // panic-fail: can fail if image isn't valid
 					.to_rgba8(),
 			Self::Bytes(data) =>
 				image::load_from_memory(data)
-					.unwrap() // unwrap-fail: can fail if image isn't valid
+					.unwrap() // panic-fail: can fail if image isn't valid
 					.to_rgba8()
 		}
 	}
