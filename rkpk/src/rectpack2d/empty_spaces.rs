@@ -4,7 +4,6 @@ use super::rect_structs::{RectWH, RectXYWH};
 pub struct EmptySpaces {
 	pub current_aabb: RectWH,
 	pub spaces: Vec<RectXYWH>,
-	pub allow_flipping: bool,
 	_marker: std::marker::PhantomData<RectXYWH>,
 }
 
@@ -15,11 +14,10 @@ enum InsertResult {
 }
 
 impl EmptySpaces {
-	pub fn new(allow_flipping: bool) -> Self {
+	pub fn new() -> Self {
 		Self {
 			current_aabb: RectWH::default(),
 			spaces: Vec::new(),
-			allow_flipping,
 			_marker: std::marker::PhantomData,
 		}
 	}

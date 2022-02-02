@@ -1,58 +1,78 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, fmt};
 
 use image::{RgbaImage, io::Reader};
 
 use crate::{etil, Error, Result};
 
 /// an image lol
+#[derive(Debug)]
 pub enum Image {
-	File(String),
+	File,
 	Bin(&'static [u8]),
 }
 
 impl Image {
 	/// load an image into memory
-	fn to_data(&self) -> Result<RgbaImage> {
+	fn to_data(&self, path: &str) -> Result<CompositeImage> {
 		Ok(match self {
-			Self::File(path) => etil::cast_result(etil::cast_result(Reader::open(path), |e| Error::Io(e))?.decode(), |e| Error::Image(e))?.to_rgba8(),
+			Self::File => etil::cast_result(etil::cast_result(Reader::open(path), |e| Error::Io(e))?.decode(), |e| Error::Image(e))?.to_rgba8(),
 			Self::Bin(data) => etil::cast_result(image::load_from_memory(data), |e| Error::Image(e))?.to_rgba8()
 		})
 	}
 }
 
 /// cache of images
-pub struct ImageCache {
-	images: HashMap<String, Image>,
-	loaded: HashMap<String, RgbaImage>
+pub struct ImageCache<'a> {
+	images: HashMap<&'a str, Image>,
+	loaded: HashMap<&'a str, CompositeImage>,
 }
 
-enum ImageCacheTemp<'a> {
-	Loaded(&'a RgbaImage),
-	Unloaded(RgbaImage),
+impl<'a> fmt::Debug for ImageCache<'a> {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		f.debug_struct("ImageCache")
+			.field("images", &self.images)
+			.finish()
+	}
 }
 
-impl ImageCache {
+pub fn size_of_image(i: &CompositeImage) -> (u32, u32) {
+	(i.width(), i.height())
+}
+
+impl<'a> ImageCache<'a> {
 	/// make new
-	fn new() -> Self {
+	pub fn new() -> Self {
 		Self {
 			images: HashMap::new(),
 			loaded: HashMap::new(),
 		}
 	}
-	fn add(&mut self, id: String, image: Image) {
-		if self.images.insert(id, image).is_some() {
+	pub fn add(&mut self, id: &'a str, image: Image) {
+		if self.images.insert(id.into(), image).is_some() {
 			// panic: user error
 			panic!("image already in cache");
 		}
 	}
-	fn get_data<'a>(&'a mut self, id: String) -> Result<&'a RgbaImage> {
-		if self.loaded.contains_key(&id) {
-			Ok(&self.loaded[&id])
-		} else if self.images.contains_key(&id) {
-			// todo here
-			Err(Error::Shit)
-		} else {
-			Err(Error::Shit)
+	pub fn get(&self, id: &'a str) -> &CompositeImage {
+		&self.loaded[id]
+	}
+	pub fn data(&mut self, id: &'a str) -> Result<()> {
+		if !self.loaded.contains_key(id) {
+			let data = self.images[id].to_data(id)?;
+			self.loaded.insert(id, data);
 		}
+		Ok(())
+	}
+	pub fn get_data(&mut self, id: &'a str) -> Result<&CompositeImage> {
+		if self.loaded.contains_key(id) {
+			Ok(&self.loaded[id])
+		} else {
+			let data = self.images[id].to_data(id)?;
+			self.loaded.insert(id, data);
+			Ok(self.get(id))
+		}
+	}
+	pub fn unload_all(&mut self) {
+		self.loaded.clear();
 	}
 }

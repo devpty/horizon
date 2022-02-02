@@ -12,27 +12,21 @@ pub enum DiscardStep {
 	Step(u32),
 }
 
-#[derive(Debug, Copy, Clone)]
-pub struct FinderInput {
-	pub start_size: u32,
-	pub discard_step: DiscardStep,
-	pub allow_flipping: bool,
-}
-
 pub fn find_best_packing(
 	subjects: &mut Vec<RectXYWH>,
-	input: FinderInput,
+	start_size: u32,
+	discard_step: DiscardStep,
 	comparators: &[&Comparator],
 ) -> Option<RectWH> {
-	let mut_vec = subjects.iter_mut().collect::<Vec<_>>();
-	let max_bin = RectWH::new(input.start_size, input.start_size);
+	let mut mut_vec = subjects.iter_mut().collect::<Vec<_>>();
+	let max_bin = RectWH::new(start_size, start_size);
 	let mut best_order = None;
 	let mut best_total_inserted = 0;
 	let mut best_bin = max_bin;
-	let mut root = EmptySpaces::new(input.allow_flipping);
+	let mut root = EmptySpaces::new();
 	for comparator in comparators {
 		mut_vec.sort_by(|a, b| comparator(a.to_wh(), b.to_wh()));
-		match best_packing_for_ordering(&mut root, &mut_vec, max_bin, input.discard_step) {
+		match best_packing_for_ordering(&mut root, &mut_vec, max_bin, discard_step) {
 			BestPackingForOrderingResult::TotalArea(total_inserted) => {
 				if best_order.is_none() && total_inserted > best_total_inserted {
 					best_order = Some(comparator);
@@ -64,7 +58,7 @@ pub fn find_best_packing(
 	Some(root.current_aabb)
 }
 
-pub const DEFAULT_COMPARATORS: &[&Comparator] = &[
+pub const DEFAULT_COMPARATORS: &[&Comparator; 6] = &[
 	&|a, b| a.area().cmp(&b.area()),
 	&|a, b| a.perimeter().cmp(&b.perimeter()),
 	&|a, b| a.max_size().cmp(&b.max_size()),

@@ -5,3 +5,6 @@ pub mod empty_spaces;
 pub mod finders_interface;
 pub mod insert_and_split;
 pub mod rect_structs;
+
+pub use finders_interface::*;
+pub use rect_structs::*;

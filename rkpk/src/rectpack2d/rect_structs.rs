@@ -13,9 +13,6 @@ impl RectWH {
 	pub fn new(w: u32, h: u32) -> Self {
 		Self {w, h}
 	}
-	pub fn flip(&self) -> Self {
-		Self { w: self.h, h: self.w }
-	}
 	pub fn max_size(&self) -> u32 {
 		if self.h > self.w {self.h} else {self.w}
 	}

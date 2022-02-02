@@ -4,7 +4,8 @@ use std::fmt;
 pub enum Error {
 	Io(std::io::Error),
 	Image(image::ImageError),
-	Shit
+	PackingFailed,
+	Shit,
 }
 
 impl fmt::Display for Error {
