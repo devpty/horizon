@@ -7,12 +7,6 @@ pub struct EmptySpaces {
 	_marker: std::marker::PhantomData<RectXYWH>,
 }
 
-enum InsertResult {
-	Failed,
-	Normal(insert_and_split::CreatedSplits),
-	Flipped(insert_and_split::CreatedSplits),
-}
-
 impl EmptySpaces {
 	pub fn new() -> Self {
 		Self {
@@ -24,20 +18,19 @@ impl EmptySpaces {
 	pub fn reset(&mut self, r: RectWH) {
 		self.current_aabb = RectWH::default();
 		self.spaces.clear();
-		self.spaces.push(RectXYWH::new(0, 0, r.w, r.h));
+		self.spaces.push(r.to_xywh());
 	}
 	pub fn insert(&mut self, image_rectangle: RectXYWH) -> Option<RectXYWH> {
 		for (i, candidate_space) in self.spaces.clone().iter().enumerate().rev() {
 			let normal = insert_and_split::CreatedSplits::new(image_rectangle.to_wh(), *candidate_space);
 			let res = if normal.valid() {
-				InsertResult::Normal(normal)
+				Option::Some(normal)
 			} else {
-				InsertResult::Failed
+				Option::None
 			};
-			let (flipping_necessary, splits) = match res {
-				InsertResult::Failed => continue,
-				InsertResult::Normal(rect) => (false, rect),
-				InsertResult::Flipped(rect) => (true, rect),
+			let splits = match res {
+				Option::None => continue,
+				Option::Some(rect) => rect,
 			};
 			self.spaces.remove(i);
 			for split in splits.vec() {

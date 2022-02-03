@@ -1,8 +1,8 @@
 use std::{collections::HashMap, fmt};
 
-use image::{RgbaImage, io::Reader};
+use image::io::Reader;
 
-use crate::{etil, Error, Result};
+use crate::{etil, Error, Result, composite::CompositeImage};
 
 /// an image lol
 #[derive(Debug)]
@@ -15,8 +15,8 @@ impl Image {
 	/// load an image into memory
 	fn to_data(&self, path: &str) -> Result<CompositeImage> {
 		Ok(match self {
-			Self::File => etil::cast_result(etil::cast_result(Reader::open(path), |e| Error::Io(e))?.decode(), |e| Error::Image(e))?.to_rgba8(),
-			Self::Bin(data) => etil::cast_result(image::load_from_memory(data), |e| Error::Image(e))?.to_rgba8()
+			Self::File => CompositeImage::from_image(etil::cast_result(etil::cast_result(Reader::open(path), |e| Error::Io(e))?.decode(), |e| Error::Image(e))?.to_rgba8()),
+			Self::Bin(data) => CompositeImage::from_image(etil::cast_result(image::load_from_memory(data), |e| Error::Image(e))?.to_rgba8()),
 		})
 	}
 }
@@ -33,10 +33,6 @@ impl<'a> fmt::Debug for ImageCache<'a> {
 			.field("images", &self.images)
 			.finish()
 	}
-}
-
-pub fn size_of_image(i: &CompositeImage) -> (u32, u32) {
-	(i.width(), i.height())
 }
 
 impl<'a> ImageCache<'a> {

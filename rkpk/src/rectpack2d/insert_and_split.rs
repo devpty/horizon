@@ -9,14 +9,6 @@ pub enum CreatedSplits {
 }
 
 impl CreatedSplits {
-	pub fn count(&self) -> i8 {
-		match self {
-			Self::Failed  => -1,
-			Self::Zero    => 0,
-			Self::One(..) => 1,
-			Self::Two(..) => 2,
-		}
-	}
 	pub fn vec(&self) -> Vec<rect_structs::RectXYWH> {
 		match self {
 			Self::Failed => vec![],
@@ -24,11 +16,6 @@ impl CreatedSplits {
 			Self::One(a) => vec![*a],
 			Self::Two(a, b) => vec![*a, *b],
 		}
-	}
-	pub fn better_than(&self, other: CreatedSplits) -> bool {
-		// this seems to consider zero splits better than one or two,
-		// i guess we just prefer areas that get filled up completely
-		self.count() < other.count()
 	}
 	pub fn valid(&self) -> bool {
 		match self {

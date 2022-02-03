@@ -3,7 +3,7 @@
 // deps: none
 // stat: done
 
-#[derive(Debug, Default, Copy, Clone)]
+#[derive(Debug, Default, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct RectWH {
 	pub w: u32,
 	pub h: u32,
@@ -28,9 +28,14 @@ impl RectWH {
 	pub fn path_mul(&self) -> f64 {
 		self.max_size() as f64 / (self.min_size() * self.area()) as f64
 	}
+	pub fn to_xywh(&self) -> RectXYWH { RectXYWH::new(0, 0, self.w, self.h) }
 }
 
-#[derive(Debug, Default, Copy, Clone)]
+impl From<(u32, u32)> for RectWH {
+	fn from((w, h): (u32, u32)) -> Self { Self { w, h } }
+}
+
+#[derive(Debug, Default, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct RectXYWH {
 	pub x: u32,
 	pub y: u32,
@@ -39,11 +44,14 @@ pub struct RectXYWH {
 }
 
 impl RectXYWH {
-	pub fn new(x: u32, y: u32, w: u32, h: u32) -> Self {
-		Self { x, y, w, h }
-	}
+	pub fn new(x: u32, y: u32, w: u32, h: u32) -> Self { Self { x, y, w, h } }
 	pub fn from_wh(r: RectWH) -> Self { Self { x: 0, y: 0, w: r.w, h: r.h } }
 	pub fn area(&self) -> u32 { self.w * self.h }
 	pub fn perimeter(&self) -> u32 { 2 * (self.w + self.h) }
 	pub fn to_wh(&self) -> RectWH { RectWH::new(self.w, self.h) }
+	pub fn reset_xy(&self) -> RectXYWH { RectXYWH::new(0, 0, self.w, self.h) }
+}
+
+impl From<(u32, u32, u32, u32)> for RectXYWH {
+	fn from((x, y, w, h): (u32, u32, u32, u32)) -> Self { Self { x, y, w, h } }
 }
