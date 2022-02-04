@@ -2,6 +2,8 @@ use std::{collections::HashMap};
 
 use crate::{ImageCache, Image, Result, rectpack2d::{RectXYWH, RectWH, self}, Error, composite::{CompositeImage, rect_idx}};
 
+pub use crate::rectpack2d::DiscardStep;
+
 pub enum ImageLoad {
 	Whole,
 	Tiled {
@@ -93,7 +95,7 @@ impl<'a> Packer<'a> {
 		}
 		Ok(())
 	}
-	pub fn pack(&mut self) -> Result<()> {
+	pub fn pack(&mut self, initial_size: u32, discard: DiscardStep) -> Result<()> {
 		self.bin_size.clear();
 		let mut rects_by_layer = HashMap::new();
 		for (ik, iv) in self.images.iter_mut() {
@@ -114,9 +116,7 @@ impl<'a> Packer<'a> {
 				}
 			}
 			let bin_size = rectpack2d::find_best_packing(
-				&mut rects, 16384,
-				rectpack2d::DiscardStep::Tries(4),
-				rectpack2d::DEFAULT_COMPARATORS
+				&mut rects, initial_size, discard, rectpack2d::DEFAULT_COMPARATORS
 			);
 			let bin_size = match bin_size {
 				Some(v) => v,

@@ -1,3 +1,4 @@
+//! utilities for working with egui
 pub struct PanelState {
 	open: bool,
 	// true = right, false = left

@@ -8,4 +8,4 @@ mod packer;
 
 pub use cache::{ImageCache, Image};
 pub use error::{Error, Result, etil};
-pub use packer::{Packer, ImageLoad};
+pub use packer::{Packer, ImageLoad, DiscardStep};

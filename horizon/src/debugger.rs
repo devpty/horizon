@@ -1,3 +1,4 @@
+//! in-game debugger ui
 use crate::egui_util;
 use crate::utils;
 

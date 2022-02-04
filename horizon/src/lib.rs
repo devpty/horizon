@@ -1,3 +1,4 @@
+//! main entrypoint lol
 use std::time;
 use winit::event;
 use winit::event_loop;

@@ -1,10 +1,11 @@
+//! core rendering and state logic
 use std::{collections, iter};
 use winit::{dpi, event, window};
 use wgpu::util::DeviceExt;
 #[allow(unused_imports)]
 use log::{error, warn, info, debug, trace};
 use crate::debugger;
-use crate::egui_util::{Component};
+use crate::egui_util::Component;
 
 /// wgpu::VertexBufferLayout that owns it's attributes
 struct FakeVertexBufferLayout {
@@ -28,7 +29,7 @@ impl FakeVertexBufferLayout {
 		step_mode: wgpu::VertexStepMode
 	) -> Self {
 		FakeVertexBufferLayout {
-			attributes: attributes, step_mode,
+			attributes, step_mode,
 			array_stride: std::mem::size_of::<T>() as wgpu::BufferAddress
 		}
 	}
@@ -46,9 +47,6 @@ trait CanBuffer {
 }
 
 /// all the uniform data that's used, 16-bit values don't work here :(
-/// # screen space mapping
-/// to map from ([0, width), [0, height)) -> ([-1, 1], [-1, 1]) do
-/// 	2 * f32(pos + offset) / f32(size) - vec2<f32>(1.0, 1.0)
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, bytemuck::Pod, bytemuck::Zeroable)]
 struct WorldUniform {
