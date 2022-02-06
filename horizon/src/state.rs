@@ -6,6 +6,7 @@ use wgpu::util::DeviceExt;
 use log::{error, warn, info, debug, trace};
 use crate::debugger;
 use crate::egui_util::Component;
+use crate::utils::ResizeBuffer;
 
 /// wgpu::VertexBufferLayout that owns it's attributes
 struct FakeVertexBufferLayout {
@@ -84,50 +85,21 @@ impl WorldUniform {
 	}
 }
 
+/// vertex data
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 struct Vertex {
-	position: [u16; 2],
+	pos: [u16; 2],
+	uv:  [u16; 2],
+	col: [u16; 4],
 }
 
 impl CanBuffer for Vertex {
 	fn desc() -> FakeVertexBufferLayout {
 		fake_vertex_attr_array!(Self, Vertex,
-			0 => Uint16x2,
-		)
-	}
-}
-
-/// gpu-sent rectangle data
-#[repr(C)]
-#[derive(Clone, Copy, Debug, bytemuck::Pod, bytemuck::Zeroable)]
-struct RectInstRaw {
-	/// position in pixels
-	pos: [f32; 2],
-	/// origin in [0, 65535] -> [0, 1]
-	origin: [u16; 2],
-	/// uv start position in pixels
-	uv: [u16; 4],
-	/// color, rgba
-	col: [u8; 4],
-	/// size in pixels
-	size: [u16; 2],
-	/// rotation in [0, 65535) -> [0°, 360°)
-	rot: u16,
-	/// extra flags
-	/// 2⁰ - shading
-	/// 2¹ - 2¹⁵ - unused
-	flags: u16,
-}
-
-impl CanBuffer for RectInstRaw {
-	fn desc() -> FakeVertexBufferLayout {
-		fake_vertex_attr_array!(Self, Instance,
-			1 => Float32x2, // pos
-			2 => Unorm16x2, // origin
-			3 => Uint16x4, // uv
-			4 => Unorm8x4, // col
-			5 => Uint16x4, // size, rotation, flags
+			0 => Uint16x2,  // pos
+			1 => Uint16x2,  // uv
+			2 => Unorm16x4, // col
 		)
 	}
 }
@@ -141,20 +113,17 @@ pub struct State {
 	size: dpi::PhysicalSize<u32>,
 	target_size: dpi::PhysicalSize<u32>,
 	render_pipeline: wgpu::RenderPipeline,
-	vertex_buffer: wgpu::Buffer,
-	index_buffer: wgpu::Buffer,
 	egui_platform: egui_winit_platform::Platform,
 	egui_rpass: egui_wgpu_backend::RenderPass,
 	egui_state: debugger::DebuggerState,
-	instances: Vec<RectInstRaw>,
-	instance_buffer: wgpu::Buffer,
-	instance_len: usize,
 	world_uniform: WorldUniform,
 	world_uniform_buffer: wgpu::Buffer,
 	world_uniform_bind_group: wgpu::BindGroup,
 	start_info: crate::StartInfo,
 	atlas_bind_group: wgpu::BindGroup,
 	pressed_keys: collections::HashMap<u32, (bool, bool)>,
+	vertex_buffer: ResizeBuffer<Vertex>,
+	index_buffer: ResizeBuffer<u16>,
 }
 
 impl State {
@@ -310,31 +279,8 @@ impl State {
 
 		let mut world_uniform = WorldUniform::default();
 		world_uniform.update_atlas_size(atlas_size.0, atlas_size.1);
-		let vertex_buffer = device.create_buffer_init(
-			&wgpu::util::BufferInitDescriptor {
-				label: Some("VertexBuffer"),
-				contents: bytemuck::cast_slice(&[
-					Vertex { position: [0, 0] },
-					Vertex { position: [1, 0] },
-					Vertex { position: [0, 1] },
-					Vertex { position: [1, 1] },
-				]),
-				usage: wgpu::BufferUsages::VERTEX,
-		});
-		let index_buffer = device.create_buffer_init(
-			&wgpu::util::BufferInitDescriptor {
-				label: Some("IndexBuffer"),
-				contents: bytemuck::cast_slice(&[
-					0u16, 2u16, 1u16, 1u16, 2u16, 3u16
-				]),
-				usage: wgpu::BufferUsages::INDEX,
-		});
-		let instance_buffer = device.create_buffer_init(
-			&wgpu::util::BufferInitDescriptor {
-				label: Some("InstanceBuffer"),
-				contents: &[],
-				usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
-		});
+		let vertex_buffer = ResizeBuffer::new(vec![], wgpu::BufferUsages::VERTEX, &device);
+		let index_buffer = ResizeBuffer::new(vec![], wgpu::BufferUsages::INDEX, &device);
 		let world_uniform_buffer = device.create_buffer_init(
 			&wgpu::util::BufferInitDescriptor {
 				label: Some("UniformBuffer"),
@@ -387,7 +333,6 @@ impl State {
 					entry_point: "vert",
 					buffers: &[
 						Vertex::desc().real(),
-						RectInstRaw::desc().real(),
 					],
 				},
 				fragment: Some(wgpu::FragmentState {
@@ -420,36 +365,33 @@ impl State {
 				multiview: None,
 		});
 		Self {
-			surface, device, queue, config, size, render_pipeline, vertex_buffer,
-			index_buffer, instance_buffer, world_uniform, atlas_bind_group,
-			world_uniform_buffer, world_uniform_bind_group, start_info,
-			egui_platform, egui_rpass,
-			instances: Vec::new(),
-			instance_len: 0,
+			surface, device, queue, config, size, render_pipeline, world_uniform,
+			atlas_bind_group, world_uniform_buffer, world_uniform_bind_group,
+			start_info, egui_platform, egui_rpass, vertex_buffer, index_buffer,
 			target_size: size,
 			egui_state: debugger::DebuggerState::new(),
 			pressed_keys: collections::HashMap::new(),
 		}
 	}
-	fn update_instances(&mut self) {
-		self.instances = (0..10).map(|i| RectInstRaw {
-			pos: [i as f32 * 50.0, 50.0],
-			origin: [0, 0],
-			uv: [0, 0, 512, 512],
-			col: [(i * 25) as u8, 255, (i * 25) as u8, 255],
-			size: [64, 64],
-			rot: i as u16 * 4096,
-			flags: 0,
-		}).collect::<Vec<_>>();
-		self.instances.insert(0, RectInstRaw {
-			pos: [0.0, 0.0],
-			origin: [0, 0],
-			uv: [0, 16, 640, 480],
-			col: [255, 255, 255, 255],
-			size: [640, 480],
-			rot: 0,
-			flags: 0,
-		});
+	fn update_render(&mut self) {
+		// self.instances = (0..10).map(|i| RectInstRaw {
+		// 	pos: [i as f32 * 50.0, 50.0],
+		// 	origin: [0, 0],
+		// 	uv: [0, 0, 512, 512],
+		// 	col: [(i * 25) as u8, 255, (i * 25) as u8, 255],
+		// 	size: [64, 64],
+		// 	rot: i as u16 * 4096,
+		// 	flags: 0,
+		// }).collect::<Vec<_>>();
+		// self.instances.insert(0, RectInstRaw {
+		// 	pos: [0.0, 0.0],
+		// 	origin: [0, 0],
+		// 	uv: [0, 16, 640, 480],
+		// 	col: [255, 255, 255, 255],
+		// 	size: [640, 480],
+		// 	rot: 0,
+		// 	flags: 0,
+		// });
 	}
 	fn send_uniform_buffer(&mut self) {
 		self.queue.write_buffer(
@@ -457,39 +399,39 @@ impl State {
 			bytemuck::cast_slice(&[self.world_uniform])
 		);
 	}
-	fn resize_instance_buffer(&mut self, new_len: usize) {
-		let start_len = self.instances.len();
-		if start_len < new_len {
-			// SAFETY: RectInstRaw implements bytemuck::Zeroable
-			self.instances.resize(new_len, unsafe { std::mem::zeroed() });
-		}
-	}
-	fn send_instance_buffer(&mut self) {
-		// update instances
-		self.update_instances();
-		if self.instances.len() > self.instance_len {
-			// multiply by two until it fits, makes allocation more O(n) apparently
-			let old_len = self.instance_len;
-			debug!("instance buffer start resize! things might crash here");
-			if self.instance_len == 0 { self.instance_len = 1; }
-			while self.instances.len() > self.instance_len { self.instance_len *= 2; }
-			debug!("instance buffer resize: {} -> {}", old_len, self.instance_len);
-			self.instance_buffer.destroy();
-			self.resize_instance_buffer(self.instance_len);
-			self.instance_buffer = self.device.create_buffer_init(
-				&wgpu::util::BufferInitDescriptor {
-					label: Some("InstanceBuffer"),
-					contents: bytemuck::cast_slice(&self.instances),
-					usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
-			});
-		} else {
-			self.resize_instance_buffer(self.instance_len);
-			self.queue.write_buffer(
-				&self.instance_buffer, 0,
-				bytemuck::cast_slice(&self.instances)
-			);
-		}
-	}
+	// fn resize_instance_buffer(&mut self, new_len: usize) {
+	// 	let start_len = self.instances.len();
+	// 	if start_len < new_len {
+	// 		// SAFETY: RectInstRaw implements bytemuck::Zeroable
+	// 		self.instances.resize(new_len, unsafe { std::mem::zeroed() });
+	// 	}
+	// }
+	// fn send_instance_buffer(&mut self) {
+	// 	// update instances
+	// 	self.update_instances();
+	// 	if self.instances.len() > self.instance_len {
+	// 		// multiply by two until it fits, makes allocation more O(n) apparently
+	// 		let old_len = self.instance_len;
+	// 		debug!("instance buffer start resize! things might crash here");
+	// 		if self.instance_len == 0 { self.instance_len = 1; }
+	// 		while self.instances.len() > self.instance_len { self.instance_len *= 2; }
+	// 		debug!("instance buffer resize: {} -> {}", old_len, self.instance_len);
+	// 		self.instance_buffer.destroy();
+	// 		self.resize_instance_buffer(self.instance_len);
+	// 		self.instance_buffer = self.device.create_buffer_init(
+	// 			&wgpu::util::BufferInitDescriptor {
+	// 				label: Some("InstanceBuffer"),
+	// 				contents: bytemuck::cast_slice(&self.instances),
+	// 				usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+	// 		});
+	// 	} else {
+	// 		self.resize_instance_buffer(self.instance_len);
+	// 		self.queue.write_buffer(
+	// 			&self.instance_buffer, 0,
+	// 			bytemuck::cast_slice(&self.instances)
+	// 		);
+	// 	}
+	// }
 	/// runs a resize event if the window has resized
 	pub fn hard_resize(&mut self, force: bool) {
 		let new_size = self.target_size;
@@ -559,8 +501,9 @@ impl State {
 		let mut encoder = self.device.create_command_encoder(
 			&wgpu::CommandEncoderDescriptor {label: Some("RenderEncoder"),}
 		);
-		self.update_instances();
-		self.send_instance_buffer();
+		self.update_render();
+		self.vertex_buffer.write_data(&self.queue, &self.device);
+		self.index_buffer.write_data(&self.queue, &self.device);
 		let egui_output_view = output.texture.create_view(
 			&wgpu::TextureViewDescriptor::default()
 		);
@@ -599,14 +542,14 @@ impl State {
 				depth_stencil_attachment: None
 		});
 		render_pass.set_pipeline(&self.render_pipeline);
-		render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-		render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
+		render_pass.set_vertex_buffer(0, self.vertex_buffer.buffer.slice(..));
+		// render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
 		render_pass.set_index_buffer(
-			self.index_buffer.slice(..), wgpu::IndexFormat::Uint16
+			self.index_buffer.buffer.slice(..), wgpu::IndexFormat::Uint16
 		);
 		render_pass.set_bind_group(0, &self.atlas_bind_group, &[]);
 		render_pass.set_bind_group(1, &self.world_uniform_bind_group, &[]);
-		render_pass.draw_indexed(0..6, 0, 0..self.instances.len() as _);
+		render_pass.draw_indexed(0..self.index_buffer.data.len() as u32, 0, 0..1);
 		drop(render_pass);
 		self.egui_rpass.execute(
 			&mut encoder,
