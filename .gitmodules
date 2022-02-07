@@ -1,0 +1,3 @@
+[submodule "rs-polygon2"]
+	path = rs-polygon2
+	url = https://gitlab.com/nathanfaucett/rs-polygon2

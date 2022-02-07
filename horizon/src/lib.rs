@@ -7,9 +7,10 @@ use winit::dpi;
 #[allow(unused_imports)]
 use log::{error, warn, info, debug, trace};
 
-mod state;
 mod debugger;
 mod egui_util;
+mod render;
+mod state;
 mod utils;
 
 /// game-specific info goes here

@@ -88,18 +88,18 @@ impl WorldUniform {
 /// vertex data
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
-struct Vertex {
-	pos: [u16; 2],
-	uv:  [u16; 2],
-	col: [u16; 4],
+pub struct Vertex {
+	pub pos: [f32; 2],
+	pub uv:  [f32; 2],
+	pub col: [u8; 4],
 }
 
 impl CanBuffer for Vertex {
 	fn desc() -> FakeVertexBufferLayout {
 		fake_vertex_attr_array!(Self, Vertex,
-			0 => Uint16x2,  // pos
-			1 => Uint16x2,  // uv
-			2 => Unorm16x4, // col
+			0 => Float32x2, // pos
+			1 => Float32x2, // uv
+			2 => Unorm8x4, // col
 		)
 	}
 }
@@ -392,6 +392,21 @@ impl State {
 		// 	rot: 0,
 		// 	flags: 0,
 		// });
+
+		// continue here
+		// theoretical api idea
+		let render_context = RenderContext::new(&mut self.vertex_buffer, &mut self.index_buffer);
+		render_context.push_clip(&[
+			[0.0, 0.0], [640.0, 0.0], [640.0, 480.0], [0.0, 480.0]
+		]);
+		// you could probably render things via a "convex polygon" api
+		// but we also have a shorthand for rects since that's super common
+		render_context.rect(
+			[0.0, 0.0, 512.0, 480.0], 0.0,
+			[0.0, 0.0, 512.0, 480.0],
+			[255, 255, 255, 255],
+		);
+		render_context.pop_clip();
 	}
 	fn send_uniform_buffer(&mut self) {
 		self.queue.write_buffer(
@@ -469,6 +484,7 @@ impl State {
 		// debug!("input {:?}", event);
 		match event {
 			event::WindowEvent::KeyboardInput {input, ..} => {
+				// what?
 				let state = (
 					input.state == winit::event::ElementState::Pressed,
 					true
