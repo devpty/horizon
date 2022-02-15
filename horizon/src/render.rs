@@ -34,10 +34,48 @@ impl<'a> RenderContext<'a> {
 			},
 		});
 	}
+	fn inverse_uv(p: [Vert2; 4], z: Vert2) -> Vert2 {
+		// doesn't work in some cases
+		// TODO: port MapInv from https://desmos.com/calculator/e1qvwtqsti instead
+
+		/// here's a doc comment since my editor auto-completes those
+		///
+		/// MapInv(P, L):
+		///
+		/// δ1.x = (L4.y - L3.y) * (L4.x - L3.x - L1.x + L2.x) - (L4.x - L3.x) * (L4.y - L3.y - L1.y + L2.y)
+		/// δ1.y = (L4.y - L1.y) * (L4.x - L3.x - L1.x + L2.x) - (L4.x - L1.x) * (L4.y - L3.y - L1.y + L2.y)
+		/// TODO: do these please :(
+		/// δ2
+		/// δ3
+		///
+		/// _s1 = (-δ2 + (δ2 * δ2 - 4 * δ1 * δ3).sqrt()) / 2 * δ1
+		/// _s2 = (-δ2 - (δ2 * δ2 - 4 * δ1 * δ3).sqrt()) / 2 * δ1
+		/// _s = if 0 <= _s1 <= 1 {_s1} else if 0 <= _s2 <= 1 {_s2} else if (_s2 - 0.5).abs() < (_s1 - 0.5).abs() {_s2} else {_s1}
+		/// _pM.x = L3.x * (1 - _s.y) + L2.x * _s.y
+		/// _pM.y = L1.y * (1 - _s.x) + L2.y * _s.x
+		/// _pm.x = L4.x * (1 - _s.y) + L1.x * _s.y
+		/// _pm.y = L3.y * (1 - _s.x) + L4.y * _s.x
+		/// _p = (P - _pm) / (_pM - _pm)
+		/// Pms = P - L4
+		///
+		/// Mix = L3 - L4
+		/// Miy = L1 - L4
+		/// MiD = 1 / (Mix.x * Miy.y - Miy.x * Mix.y)
+		///
+		/// Mia =  Miy.y * MiD
+		/// Mib = -Miy.x * MiD
+		/// Mic = -Mix.y * MiD
+		/// Mid =  Mix.x * MiD
+		/// _mi.x = Pms.x * Mia + Pms.y * Mib
+		/// _mi.y = Pms.x * Mic + Pms.y * Mid
+		///
+		/// if δ1.abs() > 0 {_s} else if δ1.flip().abs() > 0 {_p} else {_mi}
+
+	}
 	pub fn pop_clip(&mut self) {
 		self.stack.pop().expect("clip stack empty!");
 	}
-	pub fn polygon(&mut self, poly: &[Vert2], uv: [[f32; 2]; 4], color: [u8; 4]) {
+	pub fn polygon(&mut self, poly: &[Vert2], uv: [Vert2; 4], color: [u8; 4]) {
 		let clipped = polygon2::intersection(&poly, self.top_clip());
 
 	}
