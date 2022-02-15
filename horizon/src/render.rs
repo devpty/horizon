@@ -39,6 +39,7 @@ impl<'a> RenderContext<'a> {
 	}
 	pub fn polygon(&mut self, poly: &[Vert2], uv: [[f32; 2]; 4], color: [u8; 4]) {
 		let clipped = polygon2::intersection(&poly, self.top_clip());
+
 	}
 	pub fn rect(size: [f32; 4], rotation: f32, uv: [f32; 4], color: [u8; 4]) {
 
