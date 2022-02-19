@@ -35,7 +35,7 @@ impl PanelState {
 	}
 }
 
-pub trait Component {
+pub trait EguiComponent {
 	fn new() -> Self;
 	fn render(&mut self, context: egui::CtxRef, delta_time: f64);
 }

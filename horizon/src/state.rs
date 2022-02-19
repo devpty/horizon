@@ -2,11 +2,10 @@
 use std::{collections, iter};
 use winit::{dpi, event, window};
 use wgpu::util::DeviceExt;
-#[allow(unused_imports)]
-use log::{error, warn, info, debug, trace};
 use crate::debugger;
-use crate::egui_util::Component;
-use crate::utils::ResizeBuffer;
+use crate::ecs::{Entity, Component, UpdateInfo};
+use crate::egui_util::EguiComponent;
+use crate::render::{RenderContext, ResizeBuffer};
 
 /// wgpu::VertexBufferLayout that owns it's attributes
 struct FakeVertexBufferLayout {
@@ -57,7 +56,7 @@ struct WorldUniform {
 }
 
 impl WorldUniform {
-	fn update_screen_size(&mut self, width: u32, height: u32, integer: bool) {
+	fn update_screen_size(&mut self, width: u32, height: u32, integer: bool, offset: [f64; 2]) {
 		let target_width = 640u32;
 		let target_height = 480u32;
 		// determine scaling factor
@@ -75,10 +74,10 @@ impl WorldUniform {
 			(int_scaling_factor / height as f64) as f32
 		];
 		self.offset = [
-			((width as f64 - scaled_width) / (2.0 * int_scaling_factor)) as f32,
-			((height as f64 - scaled_height) / (2.0 * int_scaling_factor)) as f32,
+			((width as f64 - scaled_width) * offset[0] / int_scaling_factor) as f32,
+			((height as f64 - scaled_height) * offset[1] / int_scaling_factor) as f32,
 		];
-		debug!("WorldUniform = {:?}", self);
+		log::trace!("WorldUniform = {:?}", self);
 	}
 	fn update_atlas_size(&mut self, width: u32, height: u32) {
 		self.atlas_size = [width as f32, height as f32];
@@ -121,9 +120,11 @@ pub struct State {
 	world_uniform_bind_group: wgpu::BindGroup,
 	start_info: crate::StartInfo,
 	atlas_bind_group: wgpu::BindGroup,
-	pressed_keys: collections::HashMap<u32, (bool, bool)>,
+	pressed_keys: collections::HashSet<u32>,
 	vertex_buffer: ResizeBuffer<Vertex>,
-	index_buffer: ResizeBuffer<u16>,
+	index_buffer: ResizeBuffer<[u16; 3]>,
+	root_entity: Entity,
+	dm_screen_offset: [f64; 2],
 }
 
 impl State {
@@ -347,7 +348,7 @@ impl State {
 				primitive: wgpu::PrimitiveState {
 					topology: wgpu::PrimitiveTopology::TriangleList,
 					strip_index_format: None,
-					front_face: wgpu::FrontFace::Ccw,
+					front_face: wgpu::FrontFace::Cw,
 					cull_mode: Some(wgpu::Face::Back),
 					// Fill - filled polygons, probably what you want
 					// Line - requires Features::NON_FILL_POLYGON_MODE, but allows debug
@@ -370,7 +371,9 @@ impl State {
 			start_info, egui_platform, egui_rpass, vertex_buffer, index_buffer,
 			target_size: size,
 			egui_state: debugger::DebuggerState::new(),
-			pressed_keys: collections::HashMap::new(),
+			pressed_keys: collections::HashSet::new(),
+			dm_screen_offset: [0.5; 2],
+			root_entity: Entity::new(),
 		}
 	}
 	fn update_render(&mut self) {
@@ -392,21 +395,15 @@ impl State {
 		// 	rot: 0,
 		// 	flags: 0,
 		// });
-
-		// continue here
-		// theoretical api idea
-		let render_context = RenderContext::new(&mut self.vertex_buffer, &mut self.index_buffer);
-		render_context.push_clip(&[
-			[0.0, 0.0], [640.0, 0.0], [640.0, 480.0], [0.0, 480.0]
-		]);
-		// you could probably render things via a "convex polygon" api
-		// but we also have a shorthand for rects since that's super common
+		let mut render_context = RenderContext::new(&mut self.vertex_buffer, &mut self.index_buffer);
 		render_context.rect(
-			[0.0, 0.0, 512.0, 480.0], 0.0,
-			[0.0, 0.0, 512.0, 480.0],
+			[0.0, 0.0],
+			[0.0, 0.0],
+			[512.0, 512.0], 0.0,
+			[[0.0, 0.0], [512.0, 0.0], [512.0, 512.0], [0.0, 512.0]],
 			[255, 255, 255, 255],
 		);
-		render_context.pop_clip();
+		self.root_entity.render(&mut render_context);
 	}
 	fn send_uniform_buffer(&mut self) {
 		self.queue.write_buffer(
@@ -451,17 +448,15 @@ impl State {
 	pub fn hard_resize(&mut self, force: bool) {
 		let new_size = self.target_size;
 		if new_size.width > 0 && new_size.height > 0 {
-			if force || new_size.width != self.size.width
-			|| new_size.height != self.size.height {
-				trace!("resize");
-				debug!("sizing: {:?} -> {:?}", self.size, new_size);
+			if force || new_size.width != self.size.width || new_size.height != self.size.height {
+				log::trace!("resize");
+				log::trace!("sizing: {:?} -> {:?}", self.size, new_size);
 				self.size = new_size;
 				self.config.width = new_size.width;
 				self.config.height = new_size.height;
 				self.surface.configure(&self.device, &self.config);
 				self.world_uniform.update_screen_size(
-					new_size.width, new_size.height, self.start_info.integer_mode
-				);
+					new_size.width, new_size.height, self.start_info.integer_mode, self.dm_screen_offset);
 				self.send_uniform_buffer();
 			}
 		}
@@ -484,21 +479,32 @@ impl State {
 		// debug!("input {:?}", event);
 		match event {
 			event::WindowEvent::KeyboardInput {input, ..} => {
-				// what?
 				let state = (
 					input.state == winit::event::ElementState::Pressed,
-					true
+					self.pressed_keys.contains(&input.scancode)
 				);
-				self.pressed_keys.insert(input.scancode, state);
-				debug!("keyboard {:?}", state);
-				false
+				if state.0 {
+					self.pressed_keys.insert(input.scancode);
+				} else {
+					self.pressed_keys.remove(&input.scancode);
+				}
+				log::debug!("keyboard {} {}", input.scancode, match state {
+					(false, false) => "not held",
+					(false, true) => "released",
+					(true, false) => "pressed",
+					(true, true) => "held",
+				});
+				true
 			},
 			_ => false
 		}
 	}
 	/// run on a game-tick
-	pub fn update(&mut self) {
-
+	pub fn update(&mut self, delta_time: f64) {
+		let info = UpdateInfo {
+    	delta_time,
+		};
+		self.root_entity.update(&info);
 	}
 	/// renders a frame on screen
 	pub fn render(
@@ -507,22 +513,28 @@ impl State {
 		delta_time: f64,
 		window: &winit::window::Window,
 	) -> Result<(), wgpu::SurfaceError> {
-		self.update();
+		self.egui_state.start_check();
+		let res = self.egui_state.get_debug_modifiers();
+		// RA says this is 7 errors
+		// it's 0
+		(_, self.dm_screen_offset) = res;
+		self.update(delta_time);
 		self.egui_platform.update_time(run_time);
-		self.hard_resize(false);
+		self.hard_resize(res.0);
+		self.egui_state.checkpoint("update");
 		let output = self.surface.get_current_texture()?;
 		let view = output.texture.create_view(
-			&wgpu::TextureViewDescriptor::default()
-		);
+			&wgpu::TextureViewDescriptor::default());
 		let mut encoder = self.device.create_command_encoder(
-			&wgpu::CommandEncoderDescriptor {label: Some("RenderEncoder"),}
-		);
+			&wgpu::CommandEncoderDescriptor {label: Some("RenderEncoder")});
+		self.egui_state.checkpoint("init");
 		self.update_render();
+		self.egui_state.checkpoint("generate");
 		self.vertex_buffer.write_data(&self.queue, &self.device);
 		self.index_buffer.write_data(&self.queue, &self.device);
+		self.egui_state.checkpoint("buffer_write");
 		let egui_output_view = output.texture.create_view(
-			&wgpu::TextureViewDescriptor::default()
-		);
+			&wgpu::TextureViewDescriptor::default());
 		self.egui_platform.begin_frame();
 		let egui_context = self.egui_platform.context();
 		self.egui_state.render(egui_context, delta_time);
@@ -536,12 +548,11 @@ impl State {
 			scale_factor: window.scale_factor() as f32,
 		};
 		self.egui_rpass.update_texture(
-			&self.device, &self.queue, &self.egui_platform.context().font_image()
-		);
+			&self.device, &self.queue, &self.egui_platform.context().font_image());
 		self.egui_rpass.update_user_textures(&self.device, &self.queue);
 		self.egui_rpass.update_buffers(
-			&self.device, &self.queue, &egui_paint_jobs, &egui_screen_descriptor
-		);
+			&self.device, &self.queue, &egui_paint_jobs, &egui_screen_descriptor);
+		self.egui_state.checkpoint("egui");
 		let mut render_pass = encoder.begin_render_pass(
 			&wgpu::RenderPassDescriptor {
 				label: Some("RenderPass"),
@@ -561,11 +572,11 @@ impl State {
 		render_pass.set_vertex_buffer(0, self.vertex_buffer.buffer.slice(..));
 		// render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
 		render_pass.set_index_buffer(
-			self.index_buffer.buffer.slice(..), wgpu::IndexFormat::Uint16
-		);
+			self.index_buffer.buffer.slice(..), wgpu::IndexFormat::Uint16);
 		render_pass.set_bind_group(0, &self.atlas_bind_group, &[]);
 		render_pass.set_bind_group(1, &self.world_uniform_bind_group, &[]);
-		render_pass.draw_indexed(0..self.index_buffer.data.len() as u32, 0, 0..1);
+		render_pass.draw_indexed(0..(self.index_buffer.len() * 3) as u32, 0, 0..1);
+		self.egui_state.checkpoint("render_pass");
 		drop(render_pass);
 		self.egui_rpass.execute(
 			&mut encoder,
@@ -576,6 +587,7 @@ impl State {
 		).unwrap();
 		self.queue.submit(iter::once(encoder.finish()));
 		output.present();
+		self.egui_state.checkpoint("present");
 		Ok(())
 	}
 }

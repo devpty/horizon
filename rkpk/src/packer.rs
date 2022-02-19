@@ -4,6 +4,7 @@ use crate::{ImageCache, Image, Result, rectpack2d::{RectXYWH, RectWH, self}, Err
 
 pub use crate::rectpack2d::DiscardStep;
 
+/// image rectangle templates
 pub enum ImageLoad {
 	Whole,
 	Tiled {
@@ -14,8 +15,10 @@ pub enum ImageLoad {
 	Atlas(Vec<RectXYWH>),
 }
 
+/// image key
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 struct ImageKey<'a>(&'a str, Option<&'a str>);
+/// image data
 #[derive(Debug, Clone)]
 enum ImageData<'a> {
 	Unique {
@@ -23,9 +26,13 @@ enum ImageData<'a> {
 		source: RectXYWH,
 		dest: RectWH,
 	},
+	Allocate {
+		source: RectXYWH,
+		dest: RectWH,
+	},
 	Ref(ImageKey<'a>, usize),
 }
-
+/// packs images together
 #[derive(Debug)]
 pub struct Packer<'a> {
 	cache: &'a mut ImageCache<'a>,
@@ -34,9 +41,11 @@ pub struct Packer<'a> {
 }
 
 impl<'a> Packer<'a> {
+	/// new (new version)
 	pub fn new(cache: &'a mut ImageCache<'a>) -> Self {
 		Self { cache, images: HashMap::new(), bin_size: HashMap::new() }
 	}
+	/// get the rectangles of an ImageLoad
 	pub fn rects_of(&mut self, path: &'a str, data: ImageLoad) -> Result<Vec<RectXYWH>> {
 		match data {
 			ImageLoad::Whole => Ok(vec![self.cache.get_data(path)?.size.to_xywh()]),
@@ -50,19 +59,31 @@ impl<'a> Packer<'a> {
 			ImageLoad::Atlas(data) => Ok(data)
 		}
 	}
+	/// add an image that's already in the cache
 	pub fn add(&mut self, id: &'a str, group: Option<&'a str>, path: &'a str, load: ImageLoad) -> Result<()> {
-		let rects = self.rects_of(&path, load)?.iter().map(|rect| ImageData::Unique {
+		let rects: Vec<_> = self.rects_of(&path, load)?.iter().map(|rect| ImageData::Unique {
 			key: path,
 			source: *rect,
 			dest: RectWH::new(0, 0),
 		}).collect();
+		if group.is_some() {
+			// allocate space in the None layer
+			if !self.images.contains_key(&ImageKey(id, None)) {
+				self.images.insert(ImageKey(id, None), rects.clone().iter().map(|v| match v {
+					ImageData::Unique { source, dest, .. } => ImageData::Allocate { source: *source, dest: *dest },
+					_ => unreachable!()
+				}).collect());
+			}
+		}
 		self.images.insert(ImageKey(id, group), rects);
 		Ok(())
 	}
+	/// add an image to both the cache and the packer
 	pub fn add_new(&mut self, id: &'a str, group: Option<&'a str>, path: &'a str, ty: Image, load: ImageLoad) -> Result<()> {
 		self.cache.add(path, ty);
 		self.add(id, group, path, load)
 	}
+	/// load every single image because why the fuck not
 	fn load_all(&mut self) -> Result<()> {
 		for (_, iv) in &self.images {
 			for jv in iv {
@@ -73,12 +94,12 @@ impl<'a> Packer<'a> {
 		}
 		Ok(())
 	}
-	/// loads *every* image
+	/// loads *every* image and deduplicates
 	pub fn deduplicate(&mut self) -> Result<()> {
 		let mut image_layer_map = HashMap::new();
 		self.load_all()?;
 		for (ik, iv) in self.images.iter_mut() {
-			let image_map = image_layer_map.entry(ik.1).or_insert_with(|| HashMap::new());
+			let image_map = image_layer_map.entry(ik.1).or_insert_with(HashMap::new);
 			for (jk, jv) in iv.iter_mut().enumerate() {
 				match jv {
 					ImageData::Unique { key, source, .. } => {
@@ -95,12 +116,13 @@ impl<'a> Packer<'a> {
 		}
 		Ok(())
 	}
+	/// pack rectangles in-place
 	pub fn pack(&mut self, initial_size: u32, discard: DiscardStep) -> Result<()> {
 		self.bin_size.clear();
 		let mut rects_by_layer = HashMap::new();
 		for (ik, iv) in self.images.iter_mut() {
 			rects_by_layer.entry(ik.1)
-				.or_insert_with(|| HashMap::new())
+				.or_insert_with(HashMap::new)
 				.insert(ik.0, iv);
 		}
 		let mut rects_output = HashMap::new();
@@ -146,16 +168,23 @@ impl<'a> Packer<'a> {
 				source: *source,
 				dest: *dest
 			},
+			ImageData::Allocate { source, dest } => UniqueImageData {
+				key: "<allocate>".to_string(),
+				source: *source,
+				dest: *dest,
+			},
 			ImageData::Ref(key, idx) => self.unique_entry(&self.images.get(key).unwrap()[*idx]),
 		}
 	}
+	/// generate data used to reconstruct the atlas later
+	/// TODO: make a thing to reconstruct the atlas later
 	pub fn export(&self) -> HashMap<Option<String>, HashMap<String, Vec<RectXYWH>>> {
 		let mut out = HashMap::new();
 		for (ik, iv) in &self.images {
 			out.entry(match ik.1 {
 				Some(v) => Some(v.to_string()),
 				None => None,
-			}).or_insert_with(|| HashMap::new())
+			}).or_insert_with(HashMap::new)
 				.insert(ik.0.to_string(), iv.iter().map(|v| {
 				let ent = self.unique_entry(v);
 				RectXYWH::new(ent.dest.w, ent.dest.h, ent.source.w, ent.source.h)
@@ -163,13 +192,14 @@ impl<'a> Packer<'a> {
 		}
 		out
 	}
+	/// generate result images
 	pub fn composite(&mut self) -> Result<HashMap<Option<String>, CompositeImage>> {
 		self.load_all()?;
 		let mut out = HashMap::new();
 		let mut rects_by_layer = HashMap::new();
 		for (ik, iv) in &self.images {
 			rects_by_layer.entry(ik.1)
-				.or_insert_with(|| HashMap::new())
+				.or_insert_with(HashMap::new)
 				.insert(ik.0, iv);
 		}
 		for (ik, iv) in rects_by_layer {
@@ -177,7 +207,9 @@ impl<'a> Packer<'a> {
 			for (_jk, jv) in iv {
 				for kv in jv {
 					let ent = self.unique_entry(kv);
-					image.copy_from(self.cache.get(&ent.key), ent.source, ent.dest);
+					if ent.key != "<allocate>" {
+						image.copy_from(self.cache.get(&ent.key), ent.source, ent.dest);
+					}
 				}
 			}
 			out.insert(match ik {

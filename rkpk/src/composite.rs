@@ -2,8 +2,9 @@ use std::{fmt, path::Path};
 
 use image::RgbaImage;
 
-use crate::{rectpack2d::{RectWH, RectXYWH}, etil, Error, Result};
+use crate::{rectpack2d::{RectWH, RectXYWH}, Error, Result};
 
+/// image to copy things between
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct CompositeImage {
 	pub data: Vec<u8>,
@@ -16,11 +17,13 @@ impl fmt::Debug for CompositeImage {
 	}
 }
 
+/// utility function
 pub fn rect_idx(r: RectWH) -> Vec<RectWH> {
 	(0..r.w*r.h).map(|v| RectWH::new(v % r.w, v / r.w)).collect()
 }
 
 impl CompositeImage {
+	/// new one with size
 	pub fn new(size: RectWH) -> Self {
 		let area = size.area() as usize;
 		let mut data = vec![0xFFu8; area * 4];
@@ -30,10 +33,12 @@ impl CompositeImage {
 			size
 		}
 	}
+	/// load a template image
 	pub fn from_image(image: RgbaImage) -> Self {
 		let size = RectWH::new(image.width(), image.height());
 		Self { size, data: image.into_raw() }
 	}
+	// copy from another image
 	pub fn copy_from(&mut self, other: &CompositeImage, source: RectXYWH, dest: RectWH) {
 		let step = source.w as usize * 4;
 		for y in 0..source.h {
@@ -42,9 +47,10 @@ impl CompositeImage {
 			self.data[d_start..d_start + step].copy_from_slice(&other.data[s_start..s_start + step]);
 		}
 	}
+	/// save the image to disk
 	pub fn save_to_disk(&self, path: &Path, fmt: image::ImageFormat) -> Result<()> {
-		etil::cast_result(image::save_buffer_with_format(
+		image::save_buffer_with_format(
 			path, &self.data, self.size.w, self.size.h, image::ColorType::Rgba8, fmt
-		), |v| Error::Image(v))
+		).map_err(Error::Image)
 	}
 }

@@ -1,13 +1,13 @@
 //! main entrypoint lol
+#![allow(dead_code)]
 use std::time;
 use winit::event;
 use winit::event_loop;
 use winit::window;
 use winit::dpi;
-#[allow(unused_imports)]
-use log::{error, warn, info, debug, trace};
 
 mod debugger;
+mod ecs;
 mod egui_util;
 mod render;
 mod state;
@@ -41,11 +41,11 @@ pub async fn start(info: StartInfo) {
 					Ok(_) => {},
 					Err(wgpu::SurfaceError::Lost) => state.hard_resize(true),
 					Err(wgpu::SurfaceError::OutOfMemory) => {
-						error!("Out of memory, Exiting!");
+						log::error!("Out of memory, Exiting!");
 						*control_flow = event_loop::ControlFlow::Exit
 					},
 					Err(wgpu::SurfaceError::Outdated) => {},
-					Err(e) => error!("Render error: {:?}", e),
+					Err(e) => log::error!("Render error: {:?}", e),
 				}
 			}
 			event::Event::MainEventsCleared => {
@@ -55,7 +55,7 @@ pub async fn start(info: StartInfo) {
 				ref event, window_id
 			} if window_id == window.id() => if !state.input(event) { match event {
 				event::WindowEvent::CloseRequested => {
-					info!("quit requested");
+					log::info!("quit requested");
 					*control_flow = event_loop::ControlFlow::Exit
 				},
 				event::WindowEvent::Resized(physical_size) => {

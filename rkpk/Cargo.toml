@@ -6,6 +6,9 @@ description = "image compositing wrapper for rectangle-pack"
 edition = "2021"
 
 [dependencies]
-image = {version = "0.23.14", default-features = false, features = ["png", "jpeg"]}
+image = { version = "0.24.0", default-features = false, features = ["png"] }
 # this library is actually ass to use so no!
 # rectangle-pack = "0.4.2"
+serde = { version = "1.0.136", features = ["derive"] }
+toml = "0.5.8"
+horse = { path = "../horse/" }

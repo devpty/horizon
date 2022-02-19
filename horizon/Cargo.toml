@@ -1,5 +1,5 @@
 [package]
-name = "horizon-engine"
+name = "horizon"
 version = "0.1.0"
 edition = "2021"
 description = "simple 2d game framework"
@@ -15,13 +15,13 @@ log = "0.4.14"
 env_logger = "0.9.0"
 
 # image
-image = {version = "0.23.14", default-features = false, features = ["png"]}
+image = {version = "0.24.0", default-features = false, features = ["png"]}
 
 # byte fucking
 bytemuck = { version = "1.7.3", features = [ "derive" ] }
 
 # async
-tokio = { version = "1.15.0", features = [ "full" ] }
+tokio = { version = "1.16.1", features = [ "full" ] }
 
 # math
 cgmath = "0.18.0"
@@ -33,3 +33,6 @@ egui_winit_platform = "0.13.0"
 
 # poly gone
 polygon2 = "0.3.0"
+
+[build-dependencies]
+rkpk = { path = "../rkpk/" }
