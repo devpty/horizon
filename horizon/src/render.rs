@@ -14,12 +14,16 @@ pub struct RenderContext<'a> {
 }
 
 impl<'a> RenderContext<'a> {
-	pub fn new(vertex_buffer: &'a mut ResizeBuffer<Vertex>, index_buffer: &'a mut ResizeBuffer<[u16; 3]>) -> Self {
+	pub fn new(
+		vertex_buffer: &'a mut ResizeBuffer<Vertex>,
+		index_buffer: &'a mut ResizeBuffer<[u16; 3]>,
+	) -> Self {
 		vertex_buffer.reset();
 		index_buffer.reset();
 		Self {
 			stack: Vec::new(),
-			vertex_buffer, index_buffer,
+			vertex_buffer,
+			index_buffer,
 		}
 	}
 	fn top_clip(&self) -> &[Vert2] {
@@ -32,9 +36,12 @@ impl<'a> RenderContext<'a> {
 			0 => vec![],
 			1 => res[0].clone(),
 			other => {
-				log::warn!("polygon split into {} chunks! discarding all but first", other);
+				log::warn!(
+					"polygon split into {} chunks! discarding all but first",
+					other
+				);
 				res[0].clone()
-			},
+			}
 		});
 	}
 	fn inverse_uv(p: [Vert2; 4], z: Vert2) -> Vert2 {
@@ -72,7 +79,6 @@ impl<'a> RenderContext<'a> {
 		// _mi.y = Pms.x * Mic + Pms.y * Mid
 		//
 		// if δ1.abs() > 0 {_s} else if δ1.flip().abs() > 0 {_p} else {_mi}
-
 	}
 	pub fn pop_clip(&mut self) {
 		self.stack.pop().expect("clip stack empty!");
@@ -81,38 +87,53 @@ impl<'a> RenderContext<'a> {
 		todo!("clipping isn't supported");
 		// let clipped = polygon2::intersection(&poly, self.top_clip());
 	}
-	pub fn rect(&mut self, position: Vert2, origin: Vert2, size: Vert2, rotation: f32, uv: [Vert2; 4], col: [u8; 4]) {
+	pub fn rect(
+		&mut self,
+		position: Vert2,
+		origin: Vert2,
+		size: Vert2,
+		rotation: f32,
+		uv: [Vert2; 4],
+		col: [u8; 4],
+	) {
 		let start = [
 			position[0] - size[0] * origin[0],
 			position[1] - size[1] * origin[1],
 		];
-		let end = [
-			start[0] + size[0],
-			start[1] + size[1],
-		];
+		let end = [start[0] + size[0], start[1] + size[1]];
 		if self.stack.len() > 0 {
 			todo!("clipping isn't supported");
 		} else {
 			let start_index = self.vertex_buffer.insert_index as u16;
 			self.vertex_buffer.add(Vertex {
-				uv: uv[0], col, pos: start
+				uv: uv[0],
+				col,
+				pos: start,
 			});
 			self.vertex_buffer.add(Vertex {
-				uv: uv[1], col, pos: [end[0], start[1]]
+				uv: uv[1],
+				col,
+				pos: [end[0], start[1]],
 			});
 			self.vertex_buffer.add(Vertex {
-				uv: uv[2], col, pos: end,
+				uv: uv[2],
+				col,
+				pos: end,
 			});
 			self.vertex_buffer.add(Vertex {
-				uv: uv[3], col, pos: [start[0], end[1]],
+				uv: uv[3],
+				col,
+				pos: [start[0], end[1]],
 			});
 			// 0------1
 			// |`. #1 |
 			// |  `.  |
 			// | #2 `.|
 			// 3------2
-			self.index_buffer.add([start_index, start_index + 1, start_index + 2]);
-			self.index_buffer.add([start_index, start_index + 2, start_index + 3]);
+			self.index_buffer
+				.add([start_index, start_index + 1, start_index + 2]);
+			self.index_buffer
+				.add([start_index, start_index + 2, start_index + 3]);
 		}
 	}
 }
@@ -133,7 +154,11 @@ pub struct ResizeBuffer<T: bytemuck::Pod> {
 	usage: wgpu::BufferUsages,
 }
 impl<T: bytemuck::Pod> ResizeBuffer<T> {
-	fn create_shit(device: &wgpu::Device, capacity: usize, usage: wgpu::BufferUsages) -> wgpu::Buffer {
+	fn create_shit(
+		device: &wgpu::Device,
+		capacity: usize,
+		usage: wgpu::BufferUsages,
+	) -> wgpu::Buffer {
 		device.create_buffer(&wgpu::BufferDescriptor {
 			label: Some("ResizeBuffer"),
 			size: (capacity * mem::size_of::<T>()) as u64,
@@ -149,7 +174,8 @@ impl<T: bytemuck::Pod> ResizeBuffer<T> {
 			old_len: cap,
 			capacity: cap,
 			insert_index: data.len(),
-			data, usage,
+			data,
+			usage,
 		}
 	}
 	pub fn write_data(&mut self, queue: &wgpu::Queue, device: &wgpu::Device) {
@@ -159,7 +185,11 @@ impl<T: bytemuck::Pod> ResizeBuffer<T> {
 			self.old_len = self.capacity;
 			self.buffer = Self::create_shit(device, self.capacity, self.usage);
 		}
-		queue.write_buffer(&self.buffer, 0, bytemuck::cast_slice(&self.data[..self.insert_index]));
+		queue.write_buffer(
+			&self.buffer,
+			0,
+			bytemuck::cast_slice(&self.data[..self.insert_index]),
+		);
 		// this fills the rest of the capacity with 0's
 		// for now we just draw data.len() vertexes / indexes
 		// let data_len = self.data.len();

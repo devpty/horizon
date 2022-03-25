@@ -1,0 +1,28 @@
+[package]
+name = "editor"
+version = "0.1.0"
+authors = ["1e1001"]
+description = "horizon editor"
+edition = "2021"
+
+[dependencies.horizon]
+path = "../horizon"
+
+[dependencies.env_logger]
+version = "0.9"
+
+[dependencies.log]
+version = "0.4"
+
+# async
+[dependencies.tokio]
+version = "1.16"
+features = [ "full" ]
+
+[build-dependencies.asset]
+path = "../asset"
+features = ["build"]
+
+[build-dependencies.rkpk]
+path = "../rkpk"
+features = ["build"]

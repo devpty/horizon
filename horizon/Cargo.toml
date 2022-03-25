@@ -5,34 +5,47 @@ edition = "2021"
 description = "simple 2d game framework"
 authors = ["1e1001"]
 
-[dependencies]
 # graphics
-wgpu = "0.12.0"
-winit = "0.26.1"
+[dependencies.wgpu]
+version = "0.12"
+[dependencies.winit]
+version = "0.26"
 
 # logging
-log = "0.4.14"
-env_logger = "0.9.0"
+[dependencies.log]
+version = "0.4"
 
 # image
-image = {version = "0.24.0", default-features = false, features = ["png"]}
+[dependencies.image]
+version = "0.24"
+default-features = false
+features = ["png"]
 
 # byte fucking
-bytemuck = { version = "1.7.3", features = [ "derive" ] }
+[dependencies.bytemuck]
+version = "1.7"
+features = [ "derive" ]
 
 # async
-tokio = { version = "1.16.1", features = [ "full" ] }
+[dependencies.tokio]
+version = "1.16"
+features = [ "full" ]
 
 # math
-cgmath = "0.18.0"
+[dependencies.cgmath]
+version = "0.18"
 
 # debug gui
-egui = "0.16.1"
-egui_wgpu_backend = "0.16.0"
-egui_winit_platform = "0.13.0"
+[dependencies.egui]
+version = "0.16"
+[dependencies.egui_wgpu_backend]
+version = "0.16"
+[dependencies.egui_winit_platform]
+version = "0.13"
 
 # poly gone
-polygon2 = "0.3.0"
+[dependencies.polygon2]
+version = "0.3"
 
-[build-dependencies]
-rkpk = { path = "../rkpk/" }
+[build-dependencies.rkpk]
+path = "../rkpk/"

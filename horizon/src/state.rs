@@ -1,11 +1,11 @@
 //! core rendering and state logic
-use std::{collections, iter};
-use winit::{dpi, event, window};
-use wgpu::util::DeviceExt;
 use crate::debugger;
-use crate::ecs::{Entity, Component, UpdateInfo};
+use crate::ecs::{Component, Entity, UpdateInfo};
 use crate::egui_util::EguiComponent;
 use crate::render::{RenderContext, ResizeBuffer};
+use std::{collections, iter};
+use wgpu::util::DeviceExt;
+use winit::{dpi, event, window};
 
 /// wgpu::VertexBufferLayout that owns it's attributes
 struct FakeVertexBufferLayout {
@@ -24,13 +24,11 @@ macro_rules! fake_vertex_attr_array {
 }
 
 impl FakeVertexBufferLayout {
-	fn new<T>(
-		attributes: Box<[wgpu::VertexAttribute]>,
-		step_mode: wgpu::VertexStepMode
-	) -> Self {
+	fn new<T>(attributes: Box<[wgpu::VertexAttribute]>, step_mode: wgpu::VertexStepMode) -> Self {
 		FakeVertexBufferLayout {
-			attributes, step_mode,
-			array_stride: std::mem::size_of::<T>() as wgpu::BufferAddress
+			attributes,
+			step_mode,
+			array_stride: std::mem::size_of::<T>() as wgpu::BufferAddress,
 		}
 	}
 	fn real(&self) -> wgpu::VertexBufferLayout {
@@ -60,18 +58,20 @@ impl WorldUniform {
 		let target_width = 640u32;
 		let target_height = 480u32;
 		// determine scaling factor
-		let scaling_factor = (width as f64 / target_width as f64)
-			.min(height as f64 / target_height as f64);
+		let scaling_factor =
+			(width as f64 / target_width as f64).min(height as f64 / target_height as f64);
 		// optionally floor it
 		let int_scaling_factor = if integer && scaling_factor >= 1.0 {
 			scaling_factor.floor()
-		} else { scaling_factor };
+		} else {
+			scaling_factor
+		};
 		// center it
 		let scaled_width = int_scaling_factor * target_width as f64;
 		let scaled_height = int_scaling_factor * target_height as f64;
 		self.size = [
 			(int_scaling_factor / width as f64) as f32,
-			(int_scaling_factor / height as f64) as f32
+			(int_scaling_factor / height as f64) as f32,
 		];
 		self.offset = [
 			((width as f64 - scaled_width) * offset[0] / int_scaling_factor) as f32,
@@ -89,7 +89,7 @@ impl WorldUniform {
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct Vertex {
 	pub pos: [f32; 2],
-	pub uv:  [f32; 2],
+	pub uv: [f32; 2],
 	pub col: [u8; 4],
 }
 
@@ -130,33 +130,36 @@ pub struct State {
 impl State {
 	// we *might* have to make this as a "init" rather than "new" if some of the
 	// settings in here are worth changing and require reconstruction
-	pub async fn new(
-		window: &window::Window, start_info: crate::StartInfo
-	) -> Self {
+	pub async fn new(window: &window::Window, start_info: crate::StartInfo) -> Self {
 		let size = window.inner_size();
 		let instance = wgpu::Instance::new(wgpu::Backends::all());
 		// SAFETY: it is
 		let surface = unsafe { instance.create_surface(window) };
-		let adapter = instance.request_adapter(
-			&wgpu::RequestAdapterOptions {
+		let adapter = instance
+			.request_adapter(&wgpu::RequestAdapterOptions {
 				power_preference: wgpu::PowerPreference::default(),
 				compatible_surface: Some(&surface),
 				force_fallback_adapter: false,
-			},
-		).await.expect("failed to adpater");
-		let (device, queue) = adapter.request_device(
-			&wgpu::DeviceDescriptor {
-				features: wgpu::Features::empty(),
-				limits: wgpu::Limits::default(),
-				label: None,
-			},
-			None
-		).await.expect("failed to device");
+			})
+			.await
+			.expect("failed to adpater");
+		let (device, queue) = adapter
+			.request_device(
+				&wgpu::DeviceDescriptor {
+					features: wgpu::Features::empty(),
+					limits: wgpu::Limits::default(),
+					label: None,
+				},
+				None,
+			)
+			.await
+			.expect("failed to device");
 		let surface_format = surface.get_preferred_format(&adapter).unwrap();
 		let config = wgpu::SurfaceConfiguration {
 			usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
 			format: surface_format,
-			width: size.width, height: size.height,
+			width: size.width,
+			height: size.height,
 			// the three modes are:
 			// - Immediate - no v-sync, just immediately send commands to the buffer
 			// - Fifo      - full v-sync
@@ -166,9 +169,9 @@ impl State {
 			present_mode: wgpu::PresentMode::Fifo,
 		};
 		surface.configure(&device, &config);
-		let atlas_bytes = include_bytes!("assets/icon.png");
-		let atlas_image = image::load_from_memory(atlas_bytes)
-			.expect("failed to load image");
+		// let atlas_bytes = include_bytes!("assets/icon.png");
+		let atlas_bytes = &[];
+		let atlas_image = image::load_from_memory(atlas_bytes).expect("failed to load image");
 		let atlas_rgba = atlas_image.to_rgba8();
 		let atlas_size = atlas_rgba.dimensions();
 		let atlas_extent = wgpu::Extent3d {
@@ -198,11 +201,9 @@ impl State {
 				bytes_per_row: std::num::NonZeroU32::new(4 * atlas_size.0),
 				rows_per_image: std::num::NonZeroU32::new(atlas_size.1),
 			},
-			atlas_extent
+			atlas_extent,
 		);
-		let atlas_view = atlas_texture.create_view(
-			&wgpu::TextureViewDescriptor::default()
-		);
+		let atlas_view = atlas_texture.create_view(&wgpu::TextureViewDescriptor::default());
 		let atlas_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
 			label: Some("AtlasSampler"),
 			// i want ClampToBorder but no support :(
@@ -215,8 +216,8 @@ impl State {
 			border_color: Some(wgpu::SamplerBorderColor::TransparentBlack),
 			..Default::default()
 		});
-		let atlas_bind_group_layout = device.create_bind_group_layout(
-			&wgpu::BindGroupLayoutDescriptor {
+		let atlas_bind_group_layout =
+			device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
 				label: Some("AtlasBindGroupLayout"),
 				entries: &[
 					wgpu::BindGroupLayoutEntry {
@@ -225,7 +226,7 @@ impl State {
 						ty: wgpu::BindingType::Texture {
 							multisampled: false,
 							view_dimension: wgpu::TextureViewDimension::D2,
-							sample_type: wgpu::TextureSampleType::Float {filterable: true}
+							sample_type: wgpu::TextureSampleType::Float { filterable: true },
 						},
 						count: None,
 					},
@@ -236,7 +237,7 @@ impl State {
 						count: None,
 					},
 				],
-		});
+			});
 		let atlas_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
 			label: Some("AtlasBindGroup"),
 			layout: &atlas_bind_group_layout,
@@ -249,32 +250,29 @@ impl State {
 					binding: 1,
 					resource: wgpu::BindingResource::Sampler(&atlas_sampler),
 				},
-			]
+			],
 		});
 		let shader = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
 			label: Some("Shader"),
-			source: wgpu::ShaderSource::Wgsl(
-				include_str!("shaders/shader.wgsl").into()
-			),
+			source: wgpu::ShaderSource::Wgsl(include_str!("shaders/shader.wgsl").into()),
 		});
 
-		let egui_platform = egui_winit_platform::Platform::new(
-			egui_winit_platform::PlatformDescriptor {
+		let egui_platform =
+			egui_winit_platform::Platform::new(egui_winit_platform::PlatformDescriptor {
 				physical_width: size.width as u32,
 				physical_height: size.height as u32,
 				scale_factor: window.scale_factor(),
 				font_definitions: egui::FontDefinitions::default(),
 				style: Default::default(),
-		});
-		let egui_rpass = egui_wgpu_backend::RenderPass::new(
-			&device, surface_format, 1
-		);
+			});
+		let egui_rpass = egui_wgpu_backend::RenderPass::new(&device, surface_format, 1);
 		let egui_context = egui_platform.context();
 		let mut egui_visuals = egui::style::Visuals::dark();
 		egui_visuals.window_shadow = egui::epaint::Shadow {
 			extrusion: 0.0,
 			color: egui::Color32::TRANSPARENT,
 		};
+		// egui_visuals.window_rounding = egui::Rounding::none();
 		egui_visuals.window_corner_radius = 0.0;
 		egui_context.set_visuals(egui_visuals);
 
@@ -282,93 +280,93 @@ impl State {
 		world_uniform.update_atlas_size(atlas_size.0, atlas_size.1);
 		let vertex_buffer = ResizeBuffer::new(vec![], wgpu::BufferUsages::VERTEX, &device);
 		let index_buffer = ResizeBuffer::new(vec![], wgpu::BufferUsages::INDEX, &device);
-		let world_uniform_buffer = device.create_buffer_init(
-			&wgpu::util::BufferInitDescriptor {
-				label: Some("UniformBuffer"),
-				contents: bytemuck::cast_slice(&[world_uniform]),
-				usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+		let world_uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+			label: Some("UniformBuffer"),
+			contents: bytemuck::cast_slice(&[world_uniform]),
+			usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
 		});
 
-		let world_uniform_bind_group_layout = device.create_bind_group_layout(
-			&wgpu::BindGroupLayoutDescriptor {
+		let world_uniform_bind_group_layout =
+			device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
 				label: Some("UniformBindGroupLayout"),
-				entries: &[
-					wgpu::BindGroupLayoutEntry {
-						binding: 0,
-						visibility: wgpu::ShaderStages::VERTEX,
-						ty: wgpu::BindingType::Buffer {
-							ty: wgpu::BufferBindingType::Uniform,
-							has_dynamic_offset: false,
-							min_binding_size: None,
-						},
-						count: None,
-					}
-				]
+				entries: &[wgpu::BindGroupLayoutEntry {
+					binding: 0,
+					visibility: wgpu::ShaderStages::VERTEX,
+					ty: wgpu::BindingType::Buffer {
+						ty: wgpu::BufferBindingType::Uniform,
+						has_dynamic_offset: false,
+						min_binding_size: None,
+					},
+					count: None,
+				}],
+			});
+		let world_uniform_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+			label: Some("UniformBindGroup"),
+			layout: &world_uniform_bind_group_layout,
+			entries: &[wgpu::BindGroupEntry {
+				binding: 0,
+				resource: world_uniform_buffer.as_entire_binding(),
+			}],
 		});
-		let world_uniform_bind_group = device.create_bind_group(
-			&wgpu::BindGroupDescriptor {
-				label: Some("UniformBindGroup"),
-				layout: &world_uniform_bind_group_layout,
-				entries: &[
-					wgpu::BindGroupEntry {
-						binding: 0,
-						resource: world_uniform_buffer.as_entire_binding(),
-					}
-				]
-		});
-		let render_pipeline_layout = device.create_pipeline_layout(
-			&wgpu::PipelineLayoutDescriptor {
+		let render_pipeline_layout =
+			device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
 				label: Some("RenderPipelineLayout"),
-				bind_group_layouts: &[
-					&atlas_bind_group_layout,
-					&world_uniform_bind_group_layout,
-				],
+				bind_group_layouts: &[&atlas_bind_group_layout, &world_uniform_bind_group_layout],
 				push_constant_ranges: &[],
-		});
-		let render_pipeline = device.create_render_pipeline(
-			&wgpu::RenderPipelineDescriptor {
-				label: Some("RenderPipeline"),
-				layout: Some(&render_pipeline_layout),
-				vertex: wgpu::VertexState {
-					module: &shader,
-					entry_point: "vert",
-					buffers: &[
-						Vertex::desc().real(),
-					],
-				},
-				fragment: Some(wgpu::FragmentState {
-					module: &shader,
-					entry_point: "frag",
-					targets: &[wgpu::ColorTargetState {
-						format: config.format,
-						blend: Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
-						write_mask: wgpu::ColorWrites::ALL,
-					}]
-				}),
-				primitive: wgpu::PrimitiveState {
-					topology: wgpu::PrimitiveTopology::TriangleList,
-					strip_index_format: None,
-					front_face: wgpu::FrontFace::Cw,
-					cull_mode: Some(wgpu::Face::Back),
-					// Fill - filled polygons, probably what you want
-					// Line - requires Features::NON_FILL_POLYGON_MODE, but allows debug
-					//        lines
-					polygon_mode: wgpu::PolygonMode::Fill,
-					unclipped_depth: false,
-					conservative: false,
-				},
-				depth_stencil: None,
-				multisample: wgpu::MultisampleState {
-					count: 1,
-					mask: !0,
-					alpha_to_coverage_enabled: false
-				},
-				multiview: None,
+			});
+		let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+			label: Some("RenderPipeline"),
+			layout: Some(&render_pipeline_layout),
+			vertex: wgpu::VertexState {
+				module: &shader,
+				entry_point: "vert",
+				buffers: &[Vertex::desc().real()],
+			},
+			fragment: Some(wgpu::FragmentState {
+				module: &shader,
+				entry_point: "frag",
+				targets: &[wgpu::ColorTargetState {
+					format: config.format,
+					blend: Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
+					write_mask: wgpu::ColorWrites::ALL,
+				}],
+			}),
+			primitive: wgpu::PrimitiveState {
+				topology: wgpu::PrimitiveTopology::TriangleList,
+				strip_index_format: None,
+				front_face: wgpu::FrontFace::Cw,
+				cull_mode: Some(wgpu::Face::Back),
+				// Fill - filled polygons, probably what you want
+				// Line - requires Features::NON_FILL_POLYGON_MODE, but allows debug
+				//        lines
+				polygon_mode: wgpu::PolygonMode::Fill,
+				unclipped_depth: false,
+				conservative: false,
+			},
+			depth_stencil: None,
+			multisample: wgpu::MultisampleState {
+				count: 1,
+				mask: !0,
+				alpha_to_coverage_enabled: false,
+			},
+			multiview: None,
 		});
 		Self {
-			surface, device, queue, config, size, render_pipeline, world_uniform,
-			atlas_bind_group, world_uniform_buffer, world_uniform_bind_group,
-			start_info, egui_platform, egui_rpass, vertex_buffer, index_buffer,
+			surface,
+			device,
+			queue,
+			config,
+			size,
+			render_pipeline,
+			world_uniform,
+			atlas_bind_group,
+			world_uniform_buffer,
+			world_uniform_bind_group,
+			start_info,
+			egui_platform,
+			egui_rpass,
+			vertex_buffer,
+			index_buffer,
 			target_size: size,
 			egui_state: debugger::DebuggerState::new(),
 			pressed_keys: collections::HashSet::new(),
@@ -395,11 +393,13 @@ impl State {
 		// 	rot: 0,
 		// 	flags: 0,
 		// });
-		let mut render_context = RenderContext::new(&mut self.vertex_buffer, &mut self.index_buffer);
+		let mut render_context =
+			RenderContext::new(&mut self.vertex_buffer, &mut self.index_buffer);
 		render_context.rect(
 			[0.0, 0.0],
 			[0.0, 0.0],
-			[512.0, 512.0], 0.0,
+			[512.0, 512.0],
+			0.0,
 			[[0.0, 0.0], [512.0, 0.0], [512.0, 512.0], [0.0, 512.0]],
 			[255, 255, 255, 255],
 		);
@@ -407,8 +407,9 @@ impl State {
 	}
 	fn send_uniform_buffer(&mut self) {
 		self.queue.write_buffer(
-			&self.world_uniform_buffer, 0,
-			bytemuck::cast_slice(&[self.world_uniform])
+			&self.world_uniform_buffer,
+			0,
+			bytemuck::cast_slice(&[self.world_uniform]),
 		);
 	}
 	// fn resize_instance_buffer(&mut self, new_len: usize) {
@@ -456,14 +457,18 @@ impl State {
 				self.config.height = new_size.height;
 				self.surface.configure(&self.device, &self.config);
 				self.world_uniform.update_screen_size(
-					new_size.width, new_size.height, self.start_info.integer_mode, self.dm_screen_offset);
+					new_size.width,
+					new_size.height,
+					self.start_info.integer_mode,
+					self.dm_screen_offset,
+				);
 				self.send_uniform_buffer();
 			}
 		}
 	}
 	/// global window event handling
 	pub fn handle_event<T>(&mut self, event: &event::Event<T>) -> bool
-	// where T: std::fmt::Debug {
+// where T: std::fmt::Debug {
 	// 	debug!("event {:?}", event);
 	{
 		self.egui_platform.handle_event(&event);
@@ -478,32 +483,34 @@ impl State {
 	pub fn input(&mut self, event: &event::WindowEvent) -> bool {
 		// debug!("input {:?}", event);
 		match event {
-			event::WindowEvent::KeyboardInput {input, ..} => {
+			event::WindowEvent::KeyboardInput { input, .. } => {
 				let state = (
 					input.state == winit::event::ElementState::Pressed,
-					self.pressed_keys.contains(&input.scancode)
+					self.pressed_keys.contains(&input.scancode),
 				);
 				if state.0 {
 					self.pressed_keys.insert(input.scancode);
 				} else {
 					self.pressed_keys.remove(&input.scancode);
 				}
-				log::debug!("keyboard {} {}", input.scancode, match state {
-					(false, false) => "not held",
-					(false, true) => "released",
-					(true, false) => "pressed",
-					(true, true) => "held",
-				});
+				log::debug!(
+					"keyboard {} {}",
+					input.scancode,
+					match state {
+						(false, false) => "not held",
+						(false, true) => "released",
+						(true, false) => "pressed",
+						(true, true) => "held",
+					}
+				);
 				true
-			},
-			_ => false
+			}
+			_ => false,
 		}
 	}
 	/// run on a game-tick
 	pub fn update(&mut self, delta_time: f64) {
-		let info = UpdateInfo {
-    	delta_time,
-		};
+		let info = UpdateInfo { delta_time };
 		self.root_entity.update(&info);
 	}
 	/// renders a frame on screen
@@ -523,24 +530,28 @@ impl State {
 		self.hard_resize(res.0);
 		self.egui_state.checkpoint("update");
 		let output = self.surface.get_current_texture()?;
-		let view = output.texture.create_view(
-			&wgpu::TextureViewDescriptor::default());
-		let mut encoder = self.device.create_command_encoder(
-			&wgpu::CommandEncoderDescriptor {label: Some("RenderEncoder")});
+		let view = output
+			.texture
+			.create_view(&wgpu::TextureViewDescriptor::default());
+		let mut encoder = self
+			.device
+			.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+				label: Some("RenderEncoder"),
+			});
 		self.egui_state.checkpoint("init");
 		self.update_render();
 		self.egui_state.checkpoint("generate");
 		self.vertex_buffer.write_data(&self.queue, &self.device);
 		self.index_buffer.write_data(&self.queue, &self.device);
 		self.egui_state.checkpoint("buffer_write");
-		let egui_output_view = output.texture.create_view(
-			&wgpu::TextureViewDescriptor::default());
+		let egui_output_view = output
+			.texture
+			.create_view(&wgpu::TextureViewDescriptor::default());
 		self.egui_platform.begin_frame();
 		let egui_context = self.egui_platform.context();
 		self.egui_state.render(egui_context, delta_time);
 		let (_, egui_paint_commands) = self.egui_platform.end_frame(Some(window));
-		let egui_paint_jobs = self.egui_platform.context()
-			.tessellate(egui_paint_commands);
+		let egui_paint_jobs = self.egui_platform.context().tessellate(egui_paint_commands);
 		// let frame_time = (time::Instant::now() - egui_start).as_secs_f32();
 		let egui_screen_descriptor = egui_wgpu_backend::ScreenDescriptor {
 			physical_width: self.size.width,
@@ -548,43 +559,57 @@ impl State {
 			scale_factor: window.scale_factor() as f32,
 		};
 		self.egui_rpass.update_texture(
-			&self.device, &self.queue, &self.egui_platform.context().font_image());
-		self.egui_rpass.update_user_textures(&self.device, &self.queue);
+			&self.device,
+			&self.queue,
+			&self.egui_platform.context().font_image(),
+		);
+		self.egui_rpass
+			.update_user_textures(&self.device, &self.queue);
 		self.egui_rpass.update_buffers(
-			&self.device, &self.queue, &egui_paint_jobs, &egui_screen_descriptor);
+			&self.device,
+			&self.queue,
+			&egui_paint_jobs,
+			&egui_screen_descriptor,
+		);
 		self.egui_state.checkpoint("egui");
-		let mut render_pass = encoder.begin_render_pass(
-			&wgpu::RenderPassDescriptor {
-				label: Some("RenderPass"),
-				color_attachments: &[wgpu::RenderPassColorAttachment {
-					view: &view,
-					resolve_target: None,
-					ops: wgpu::Operations {
-						load: wgpu::LoadOp::Clear(wgpu::Color {
-							r: 0.02, g: 0.04, b: 0.06, a: 1.0,
-						}),
-						store: true,
-					},
-				}],
-				depth_stencil_attachment: None
+		let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+			label: Some("RenderPass"),
+			color_attachments: &[wgpu::RenderPassColorAttachment {
+				view: &view,
+				resolve_target: None,
+				ops: wgpu::Operations {
+					load: wgpu::LoadOp::Clear(wgpu::Color {
+						r: 0.02,
+						g: 0.04,
+						b: 0.06,
+						a: 1.0,
+					}),
+					store: true,
+				},
+			}],
+			depth_stencil_attachment: None,
 		});
 		render_pass.set_pipeline(&self.render_pipeline);
 		render_pass.set_vertex_buffer(0, self.vertex_buffer.buffer.slice(..));
 		// render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
 		render_pass.set_index_buffer(
-			self.index_buffer.buffer.slice(..), wgpu::IndexFormat::Uint16);
+			self.index_buffer.buffer.slice(..),
+			wgpu::IndexFormat::Uint16,
+		);
 		render_pass.set_bind_group(0, &self.atlas_bind_group, &[]);
 		render_pass.set_bind_group(1, &self.world_uniform_bind_group, &[]);
 		render_pass.draw_indexed(0..(self.index_buffer.len() * 3) as u32, 0, 0..1);
 		self.egui_state.checkpoint("render_pass");
 		drop(render_pass);
-		self.egui_rpass.execute(
-			&mut encoder,
-			&egui_output_view,
-			&egui_paint_jobs,
-			&egui_screen_descriptor,
-			None,
-		).unwrap();
+		self.egui_rpass
+			.execute(
+				&mut encoder,
+				&egui_output_view,
+				&egui_paint_jobs,
+				&egui_screen_descriptor,
+				None,
+			)
+			.unwrap();
 		self.queue.submit(iter::once(encoder.finish()));
 		output.present();
 		self.egui_state.checkpoint("present");

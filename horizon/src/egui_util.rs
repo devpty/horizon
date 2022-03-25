@@ -7,13 +7,20 @@ pub struct PanelState {
 
 impl PanelState {
 	pub fn new(side: bool) -> Self {
-		Self {open: false, side: side}
+		Self {
+			open: false,
+			side: side,
+		}
 	}
 	pub fn is_open(&self) -> bool {
 		self.open
 	}
 	fn arrow(&self) -> &'static str {
-		if self.side {"<<"} else {">>"}
+		if self.side {
+			"<<"
+		} else {
+			">>"
+		}
 	}
 	fn side(&self) -> egui::panel::Side {
 		if self.side {
@@ -38,4 +45,5 @@ impl PanelState {
 pub trait EguiComponent {
 	fn new() -> Self;
 	fn render(&mut self, context: egui::CtxRef, delta_time: f64);
+	// fn render(&mut self, context: egui::Context, delta_time: f64);
 }

@@ -1,19 +1,20 @@
-use std::{cmp};
+use std::cmp;
 
-use super::best_bin_finder::{BestPackingForOrderingResult, best_packing_for_ordering};
-use super::empty_spaces::{EmptySpaces};
-use super::rect_structs::{RectWH, RectXYWH};
+use crate::common::ImageSize;
 
-type Comparator = dyn Fn(RectWH, RectWH) -> cmp::Ordering;
+use super::best_bin_finder::{best_packing_for_ordering, BestPackingForOrderingResult};
+use super::empty_spaces::EmptySpaces;
+
+type Comparator = dyn Fn(ImageSize, ImageSize) -> cmp::Ordering;
 
 #[derive(Debug, Copy, Clone)]
 pub enum DiscardStep {
-	Tries(u32),
-	Step(u32),
+	Tries(u16),
+	Step(u16),
 }
 
 pub fn find_best_packing(
-	subjects: &mut Vec<RectXYWH>,
+	subjects: &mut Vec<RectXYWH>, // todo here, replace shit
 	start_size: u32,
 	discard_step: DiscardStep,
 	comparators: &[&Comparator],
@@ -32,7 +33,7 @@ pub fn find_best_packing(
 					best_order = Some(comparator);
 					best_total_inserted = total_inserted;
 				}
-			},
+			}
 			BestPackingForOrderingResult::Rect(result_bin) => {
 				// this will be like 0.0001% faster if i change the <= with a <
 				// that messes up the case where the smallest area is equal to the bin area
@@ -45,7 +46,7 @@ pub fn find_best_packing(
 	}
 	let best_order = match best_order {
 		Some(v) => v,
-		None => return None
+		None => return None,
 	};
 	root.reset(best_bin);
 	mut_vec.sort_by(|a, b| best_order(a.to_wh(), b.to_wh()));
@@ -64,5 +65,9 @@ pub const DEFAULT_COMPARATORS: &[&Comparator; 6] = &[
 	&|a, b| a.max_size().cmp(&b.max_size()),
 	&|a, b| a.w.cmp(&b.w),
 	&|a, b| a.h.cmp(&b.h),
-	&|a, b| a.path_mul().partial_cmp(&b.path_mul()).unwrap_or(cmp::Ordering::Equal)
+	&|a, b| {
+		a.path_mul()
+			.partial_cmp(&b.path_mul())
+			.unwrap_or(cmp::Ordering::Equal)
+	},
 ];

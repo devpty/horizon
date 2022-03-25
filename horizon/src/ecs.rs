@@ -80,5 +80,10 @@ impl Component for Entity {
 pub trait Component {
 	fn update(&mut self, info: &UpdateInfo);
 	fn render(&self, context: &mut RenderContext);
-	fn type_id(&self) -> TypeId where Self: 'static { TypeId::of::<Self>() }
+	fn type_id(&self) -> TypeId
+	where
+		Self: 'static,
+	{
+		TypeId::of::<Self>()
+	}
 }

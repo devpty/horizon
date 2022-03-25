@@ -2,13 +2,30 @@
 name = "rkpk"
 version = "0.1.0"
 authors = ["1e1001"]
-description = "image compositing wrapper for rectangle-pack"
+description = "image compositing wrapper for rectpack2d"
 edition = "2021"
 
-[dependencies]
-image = { version = "0.24.0", default-features = false, features = ["png"] }
-# this library is actually ass to use so no!
-# rectangle-pack = "0.4.2"
-serde = { version = "1.0.136", features = ["derive"] }
-toml = "0.5.8"
-horse = { path = "../horse/" }
+[dependencies.image]
+version = "0.24"
+default-features = false
+features = ["png"]
+
+[dependencies.serde]
+version = "1.0"
+features = ["derive"]
+
+[dependencies.toml]
+version = "0.5"
+
+[dependencies.postcard]
+version = "0.7"
+
+[dependencies.thiserror]
+version = "1.0"
+
+[dependencies.asset]
+path = "../asset"
+
+[features]
+build = ["asset/build"]
+runtime = ["asset/runtime"]

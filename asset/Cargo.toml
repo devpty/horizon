@@ -1,0 +1,16 @@
+[package]
+name = "asset"
+version = "0.1.0"
+authors = ["1e1001"]
+description = "asset packing library"
+edition = "2021"
+
+[dependencies.thiserror]
+version = "1.0"
+
+[dependencies.zstd]
+version = "0.10"
+
+[features]
+build = []
+runtime = []
