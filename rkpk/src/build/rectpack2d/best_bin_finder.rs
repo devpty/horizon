@@ -1,5 +1,4 @@
-use crate::common::ImageRect;
-use crate::common::ImageSize;
+use crate::common::{ImageArea, RectWH, RectXYWH};
 
 use super::empty_spaces;
 use super::finders_interface;
@@ -13,14 +12,14 @@ pub enum BinDimension {
 
 #[derive(Debug, Copy, Clone)]
 pub enum BestPackingForOrderingResult {
-	TotalArea(u32),
-	Rect(ImageSize),
+	TotalArea(ImageArea),
+	Rect(RectWH),
 }
 
 fn best_packing_for_ordering_impl(
 	root: &mut empty_spaces::EmptySpaces,
-	ordering: &Vec<&mut ImageRect>,
-	starting_bin: ImageSize,
+	ordering: &Vec<&mut RectXYWH>,
+	starting_bin: RectWH,
 	discard_step: finders_interface::DiscardStep,
 	tried_dimension: BinDimension,
 ) -> BestPackingForOrderingResult {
@@ -31,18 +30,18 @@ fn best_packing_for_ordering_impl(
 	};
 	let starting_step = match tried_dimension {
 		BinDimension::Both => {
-			candidate_bin.0 /= 2;
-			candidate_bin.1 /= 2;
+			candidate_bin.w /= 2;
+			candidate_bin.h /= 2;
 			// why the width here?
-			candidate_bin.0 / 2
+			candidate_bin.w / 2
 		}
 		BinDimension::Width => {
-			candidate_bin.0 /= 2;
-			candidate_bin.0 / 2
+			candidate_bin.w /= 2;
+			candidate_bin.w / 2
 		}
 		BinDimension::Height => {
-			candidate_bin.1 /= 2;
-			candidate_bin.1 / 2
+			candidate_bin.h /= 2;
+			candidate_bin.h / 2
 		}
 	};
 	let mut step = starting_step;
@@ -53,7 +52,7 @@ fn best_packing_for_ordering_impl(
 		let all_inserted = 'ch: {
 			for rect in ordering {
 				match root.insert(**rect) {
-					Some(_) => total_inserted_area += rect.2 as u32 * rect.3 as u32,
+					Some(_) => total_inserted_area += rect.area(),
 					None => break 'ch false,
 				}
 			}
@@ -69,25 +68,25 @@ fn best_packing_for_ordering_impl(
 			}
 			match tried_dimension {
 				BinDimension::Both => {
-					candidate_bin.0 -= step;
-					candidate_bin.1 -= step;
+					candidate_bin.w -= step;
+					candidate_bin.h -= step;
 				}
-				BinDimension::Width => candidate_bin.0 -= step,
-				BinDimension::Height => candidate_bin.1 -= step,
+				BinDimension::Width => candidate_bin.w -= step,
+				BinDimension::Height => candidate_bin.h -= step,
 			}
 		} else if match tried_dimension {
 			BinDimension::Both => {
-				candidate_bin.0 += step;
-				candidate_bin.1 += step;
-				candidate_bin.0 as u32 * candidate_bin.1 as u32 > starting_bin.0 as u32 * starting_bin.1 as u32
+				candidate_bin.w += step;
+				candidate_bin.h += step;
+				candidate_bin.area() > starting_bin.area()
 			}
 			BinDimension::Width => {
-				candidate_bin.0 += step;
-				candidate_bin.0 > starting_bin.0
+				candidate_bin.w += step;
+				candidate_bin.w > starting_bin.w
 			}
 			BinDimension::Height => {
-				candidate_bin.1 += step;
-				candidate_bin.1 > starting_bin.1
+				candidate_bin.h += step;
+				candidate_bin.h > starting_bin.h
 			}
 		} {
 			return BestPackingForOrderingResult::TotalArea(total_inserted_area);
@@ -98,8 +97,8 @@ fn best_packing_for_ordering_impl(
 
 pub fn best_packing_for_ordering(
 	root: &mut empty_spaces::EmptySpaces,
-	ordering: &Vec<&mut ImageRect>,
-	starting_bin: ImageSize,
+	ordering: &Vec<&mut RectXYWH>,
+	starting_bin: RectWH,
 	discard_step: finders_interface::DiscardStep,
 ) -> BestPackingForOrderingResult {
 	macro_rules! try_pack {

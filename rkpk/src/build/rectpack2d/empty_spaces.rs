@@ -1,29 +1,31 @@
-use crate::common::{ImageSize, ImageRect};
+use crate::common::{RectWH, RectXYWH};
 
-use super::insert_and_split;
+use super::insert_and_split::CreatedSplits;
 
 pub struct EmptySpaces {
-	pub current_aabb: ImageSize,
-	pub spaces: Vec<ImageRect>,
+	pub current_aabb: RectWH,
+	pub spaces: Vec<RectXYWH>,
 }
 
 impl EmptySpaces {
 	#[allow(clippy::new_without_default)]
 	pub fn new() -> Self {
 		Self {
-			current_aabb: (0, 0),
+			current_aabb: RectWH::new(0, 0),
 			spaces: Vec::new(),
 		}
 	}
-	pub fn reset(&mut self, r: ImageSize) {
-		self.current_aabb = (0, 0);
+	pub fn reset(&mut self, r: RectWH) {
+		self.current_aabb = RectWH::new(0, 0);
 		self.spaces.clear();
-		self.spaces.push((0, 0, r.0, r.1));
+		self.spaces.push(RectXYWH::new(0, 0, r.w, r.h));
 	}
-	pub fn insert(&mut self, image_rectangle: ImageRect) -> Option<ImageRect> {
+	pub fn insert(&mut self, image_rectangle: RectXYWH) -> Option<RectXYWH> {
 		for (i, candidate_space) in self.spaces.clone().iter().enumerate().rev() {
-			let normal =
-				insert_and_split::CreatedSplits::new((image_rectangle.0, image_rectangle.1), *candidate_space);
+			let normal = CreatedSplits::new(
+				RectWH::new(image_rectangle.x, image_rectangle.y),
+				*candidate_space,
+			);
 			let res = if normal.valid() {
 				Option::Some(normal)
 			} else {
@@ -38,14 +40,14 @@ impl EmptySpaces {
 				self.spaces.push(split);
 			}
 			// no allow_flip shit here since !allow_flipping will never call the flipping codepath
-			let result = (
-				candidate_space.0,
-				candidate_space.1,
-				image_rectangle.2,
-				image_rectangle.3,
+			let result = RectXYWH::new(
+				candidate_space.x,
+				candidate_space.y,
+				image_rectangle.w,
+				image_rectangle.h,
 			);
-			self.current_aabb.0 = self.current_aabb.0.max(result.0 + result.2);
-			self.current_aabb.1 = self.current_aabb.1.max(result.1 + result.3);
+			self.current_aabb.w = self.current_aabb.w.max(result.x + result.w);
+			self.current_aabb.h = self.current_aabb.h.max(result.y + result.h);
 			return Some(result);
 		}
 		None

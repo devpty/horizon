@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::common::{CompositeImage, ImageRect, ImageSize, RkPkResult};
+use crate::common::{CompositeImage, RectWH, RectXYWH, RkPkResult};
 
 pub mod rectpack2d;
 
@@ -16,7 +16,10 @@ impl ImageSource {
 	fn load(&self) -> RkPkResult<CompositeImage> {
 		Ok(match self {
 			ImageSource::Path(v) => image::io::Reader::open(v)?.decode()?.to_rgba8().into(),
-			ImageSource::Raw(v) => CompositeImage { size: v.size, data: v.data.clone() },
+			ImageSource::Raw(v) => CompositeImage {
+				size: v.size,
+				data: v.data.clone(),
+			},
 		})
 	}
 }
@@ -26,28 +29,28 @@ impl ImageSource {
 pub enum ImageLoad {
 	Whole,
 	Tiled {
-		init: ImageRect,
-		gap: ImageSize,
-		count: ImageSize,
+		init: RectXYWH,
+		gap: RectWH,
+		count: RectWH,
 	},
-	Atlas(Vec<ImageRect>),
+	Atlas(Vec<RectXYWH>),
 }
 
 impl ImageLoad {
-	fn into_rects(self, source: &ImageSource) -> RkPkResult<Vec<ImageRect>> {
+	fn into_rects(self, source: &ImageSource) -> RkPkResult<Vec<RectXYWH>> {
 		match self {
 			ImageLoad::Whole => {
-				let (w, h) = source.load()?.size;
-				Ok(vec![(0, 0, w, h)])
-			},
-			ImageLoad::Tiled { init, gap, count } => Ok((0..count.0)
+				let RectWH {w, h} = source.load()?.size;
+				Ok(vec![RectXYWH::new(0, 0, w, h)])
+			}
+			ImageLoad::Tiled { init, gap, count } => Ok((0..count.w)
 				.flat_map(|x| {
-					(0..count.1).map(|y| {
-						(
-							init.0 + x * (init.2 + gap.0),
-							init.1 + y * (init.3 + gap.1),
-							init.2,
-							init.3,
+					(0..count.h).map(|y| {
+						RectXYWH::new(
+							init.x + x * (init.w + gap.w),
+							init.y + y * (init.h + gap.h),
+							init.w,
+							init.h,
 						)
 					})
 				})

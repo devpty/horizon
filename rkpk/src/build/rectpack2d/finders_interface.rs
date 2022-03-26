@@ -1,11 +1,11 @@
 use std::cmp;
 
-use crate::common::ImageSize;
+use crate::common::{ImagePos, RectWH, RectXYWH};
 
 use super::best_bin_finder::{best_packing_for_ordering, BestPackingForOrderingResult};
 use super::empty_spaces::EmptySpaces;
 
-type Comparator = dyn Fn(ImageSize, ImageSize) -> cmp::Ordering;
+type Comparator = dyn Fn(RectWH, RectWH) -> cmp::Ordering;
 
 #[derive(Debug, Copy, Clone)]
 pub enum DiscardStep {
@@ -14,8 +14,8 @@ pub enum DiscardStep {
 }
 
 pub fn find_best_packing(
-	subjects: &mut Vec<RectXYWH>, // todo here, replace shit
-	start_size: u32,
+	subjects: &mut Vec<RectXYWH>,
+	start_size: ImagePos,
 	discard_step: DiscardStep,
 	comparators: &[&Comparator],
 ) -> Option<RectWH> {
