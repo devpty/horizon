@@ -1,3 +1,5 @@
+(2023-01-29) We're rewriting it in Rust (ignore the fact it's already in Rust)
+
 # horizon
 A 2d game framework / engine.
 
